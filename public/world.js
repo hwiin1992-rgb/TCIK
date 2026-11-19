@@ -773,9 +773,10 @@ function lamp(x,y,z,s){cyl(x,y+.023*s,z,.19*s,.21*s,.045*s,black);cyl(x,y+.24*s,
 }
 // TCIK Mobile Controls
 {
+  document.body.append(document.querySelector('#nav'));
   const mobileStyle = document.createElement('style');
   mobileStyle.textContent = `
-    @media (any-pointer: coarse) {
+        @media (any-pointer: coarse), (max-width: 900px) {
       #nav {
         display: grid !important;
         visibility: visible !important;
