@@ -1,4 +1,34 @@
-<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>별이 내리는 카페</title><style>body{margin:0;background:#151c30;color:#fff5df;font:15px system-ui}canvas{display:block}#ui,#nav{position:fixed;z-index:1;padding:12px;background:#231b1be8;border-radius:12px}#ui{top:8px;left:8px;max-width:calc(100% - 40px)}#nav{bottom:8px;left:8px;touch-action:none}button{padding:8px;margin:2px;background:#684635;color:#fff5df;border:1px solid #a5815e;border-radius:6px}button:disabled{opacity:.45}#msg{margin:6px 0}small{display:block}#nav {
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>별이 내리는 카페</title>@media (max-width: 600px) and (orientation: portrait) {
+  #nav {
+    grid-template-columns: repeat(3, 56px) !important;
+    gap: 6px !important;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  #nav > button {
+    width: 56px !important;
+    height: 56px !important;
+    font-size: 26px !important;
+  }
+
+  #ui {
+    box-sizing: border-box;
+    max-width: calc(100% - 16px) !important;
+    padding: 10px;
+    font-size: 15px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+
+  #ui small {
+    font-size: 13px;
+  }
+
+  #ui button {
+    min-height: 44px;
+    font-size: 14px;
+  }
+}<style>body{margin:0;background:#151c30;color:#fff5df;font:15px system-ui}canvas{display:block}#ui,#nav{position:fixed;z-index:1;padding:12px;background:#231b1be8;border-radius:12px}#ui{top:8px;left:8px;max-width:calc(100% - 40px)}#nav{bottom:8px;left:8px;touch-action:none}button{padding:8px;margin:2px;background:#684635;color:#fff5df;border:1px solid #a5815e;border-radius:6px}button:disabled{opacity:.45}#msg{margin:6px 0}small{display:block}#nav {
   display: grid !important;
   visibility: visible !important;
   opacity: 1 !important;
