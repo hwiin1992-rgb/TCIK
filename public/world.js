@@ -771,3 +771,48 @@ function lamp(x,y,z,s){cyl(x,y+.023*s,z,.19*s,.21*s,.045*s,black);cyl(x,y+.24*s,
 
   requestAnimationFrame(shootingStarFrame);
 }
+// TCIK Mobile Controls
+{
+  const mobileStyle = document.createElement('style');
+  mobileStyle.textContent = `
+    @media (any-pointer: coarse) {
+      #nav {
+        display: grid !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        position: fixed !important;
+        left: calc(12px + env(safe-area-inset-left, 0px)) !important;
+        bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important;
+        top: auto !important;
+        right: auto !important;
+        transform: none !important;
+        width: max-content;
+        grid-template-columns: repeat(3, 48px);
+        gap: 6px;
+        z-index: 1000;
+        pointer-events: auto;
+      }
+
+      #nav > button {
+        display: block !important;
+        width: 48px;
+        height: 48px;
+        margin: 0;
+        padding: 0;
+        font-size: 23px;
+        color: #fff3de;
+        background: rgba(54, 38, 30, .9);
+        border: 1px solid #aa815e;
+        border-radius: 10px;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      #nav > button:active {
+        background: #956949;
+      }
+    }
+  `;
+  document.head.append(mobileStyle);
+}
