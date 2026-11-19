@@ -6,14 +6,65 @@ for(const side of [-1,1]){box(side*5.25,.42,-3,7.5,.84,.2,cream);box(side*5.25,3
 box(-5.5,.51,-.2,4.8,1.02,1.15,wood);box(-5.5,1.04,-.2,5,.14,1.28,0x936c48);for(let i=0;i<7;i++)box(-7.6+i*.65,.52,.39,.036,.87,.04,0x9c734e);box(-6.6,1.32,-.25,.89,.47,.54,0x473c35);for(let j=0;j<3;j++){box(-5.8,1.45+j*.46,6.56,4.8,.09,.42,wood);for(let i=0;i<8;i++)cyl(-7.8+i*.53,1.57+j*.46,6.53,.08,.062,.15,[0x9aabb0,0xd5b88a,0x875f45][i%3])}
 for(const [x,z] of [[-5,2],[0,2],[5,2]]){const light=new T.PointLight(0xffba73,24,13);light.position.set(x,2.62,z);scene.add(light);cyl(x,2.93,z,.13,.38,.31,0xa27149);cyl(x,3.23,z,.024,.024,.35,trim)}
 const tables = [[3.8, 1.4], [5.75, 4.55], [-0.35, 4.85]];for(const [x,z] of tables){cyl(x,.79,z,.87,.87,.12,wood);cyl(x,.37,z,.09,.15,.74,trim);box(x,.47,z+1.13,.62,.1,.65,wood);box(x,.78,z+1.43,.62,.52,.09,wood);for(const dx of [-.24,.24])for(const dz of [.89,1.37])box(x+dx,.24,z+dz,.055,.46,.055,trim);cyl(x+.3,.92,z,.07,.1,.17,0x8e7866)}
-for(const x of [-8.5,8.5]){cyl(x,.21,-7,.35,.27,.42,0x9d674d);cyl(x,.65,-7,.3,.22,.63,0x435d46)}for(let i=-9;i<=9;i++)box(i,.48,-10.85,.08,.96,.08,wood);box(0,.98,-10.85,18,.13,.17,wood);const sea=box(0,-.37,-35,116,.1,63,0x213e61);for(let i=0;i<45;i++)box(Math.sin(i*99)*40,-.309,-12-i*.95,1+(i%7)*.7,.012,.044,0x385775);
+for(const x of [-8.5,8.5]){cyl(x,.21,-7,.35,.27,.42,0x9d674d);cyl(x,.65,-7,.3,.22,.63,0x435d46)}for(let i=-9;i<=9;i++)box(i,.48,-10.85,.08,.96,.08,wood);box(0,.98,-10.85,18,.13,.17,wood);// 테라스 좌우 난간: 카페 벽에서 정면 난간까지
+for (const railX of [-8.95, 8.95]) {
+  for (let i = 0; i < 8; i++) {
+    box(railX, .48, -3.35 - i * 1.06, .08, .96, .08, wood);
+  }
+  box(railX, .98, -7, .17, .13, 7.7, wood);
+}
+
+// 바닥 아래에 펼쳐지는 밤바다
+const terraceSeaTime = { value: 0 };
+const terraceSea = new T.Mesh(
+  new T.PlaneGeometry(260, 260),
+  new T.ShaderMaterial({
+    uniforms: { uTime: terraceSeaTime },
+    vertexShader: `
+      varying vec3 vWorld;
+      void main() {
+        vec4 world = modelMatrix * vec4(position, 1.0);
+        vWorld = world.xyz;
+        gl_Position = projectionMatrix * viewMatrix * world;
+      }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      varying vec3 vWorld;
+      void main() {
+        vec2 p = vWorld.xz;
+        float a = sin(p.y * 2.1 + p.x * .38 - uTime * 1.7);
+        float b = sin(p.y * 3.4 - p.x * .72 - uTime * 1.15);
+        float c = sin(p.x * 1.6 + p.y * .65 + uTime * .8);
+        float swell = .5 + .5 * (a * .58 + b * .27 + c * .15);
+        float crest = pow(max(0.0, a * .71 + b * .29), 8.0);
+        float broken = smoothstep(.33, .86,
+          .5 + .5 * sin(p.x * 1.1 + c * .8 + uTime * .35));
+        vec3 color = mix(vec3(.007, .018, .037),
+                         vec3(.023, .058, .098), swell);
+        color += vec3(.047, .085, .12) * crest * broken;
+        float dist = length(cameraPosition - vWorld);
+        color = mix(color, vec3(.009, .012, .036),
+                    smoothstep(32.0, 120.0, dist));
+        gl_FragColor = vec4(color, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `
+  })
+);
+terraceSea.rotation.x = -Math.PI / 2;
+terraceSea.position.y = -.32;
+terraceSea.visible = false;
+scene.add(terraceSea);
 const c=document.createElement('canvas');c.width=1024;c.height=256;const ctx=c.getContext('2d'),tex=new T.CanvasTexture(c);tex.colorSpace=T.SRGBColorSpace;const sign=new T.Mesh(new T.PlaneGeometry(23,5.75),new T.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false}));sign.position.set(0,9,-36);scene.add(sign);const points=[];for(let i=0;i<430;i++)points.push(Math.sin(i*17.13)*65,3+(i*13.17)%42,-21-(i*19.81)%58);const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(points,3));scene.add(new T.Points(geo,new T.PointsMaterial({color:0xffe7b8,size:.11})));
 let x=0,z=2,yaw=0,pitch=0,sitting=-1,order=-1,ready=0,held=-1,left=0,preview=0,last=0,notice='바에 가까이 가면 주문할 수 있어요.';const names=['아메리카노','카페라떼','바닐라라떼','핫초코','유자차'],colors=[0x38221c,0xc2926e,0xe1ba82,0x734535,0xeeb94f],keys=new Set(),people=new Map();const cup=(p)=>{const g=new T.Group();p.add(g);cyl(0,0,0,.09,.065,.14,0xffe5c0,g);const top=cyl(0,.071,0,.075,.075,.009,colors[0],g);return {g,top}};const mine=cup(cam);scene.add(cam);mine.g.position.set(.29,-.24,-.55);
 socket.on('pose',(id,p)=>{if(!people.has(id)){let g=new T.Group();scene.add(g);box(0,.66,0,.41,.56,.25,0x526f6d,g);cyl(0,1.09,0,.17,.16,.28,0xe1ac81,g);box(0,.22,0,.29,.42,.21,0x302b33,g);const mug=cup(g);mug.g.position.set(.27,.66,-.2);g.position.set(p[0],0,p[1]);people.set(id,{g,mug})}const a=people.get(id);a.p=p;a.mug.g.visible=p[4]>=0;if(p[4]>=0)a.mug.top.material.color.setHex(colors[p[4]])});function remove(id){const a=people.get(id);if(a){scene.remove(a.g);people.delete(id)}}socket.on('bye',remove);socket.on('disconnect',()=>[...people.keys()].forEach(remove));
 const ui=document.querySelector('#act'),msg=document.querySelector('#msg');const nearBar=()=>Math.hypot(x+5.5,z-1)<2.25;const nearTable=()=>tables.findIndex(([a,b])=>Math.hypot(x-a,z-b-1.13)<1.05);let prev='';function update(now){const t=nearTable(),bar=nearBar();let a=[];if(sitting>=0){a.push(['stand','일어서기']);if(held>=0)a.push(['sip','한 모금 마시기'])}else if(t>=0)a.push(['seat','테이블에 앉기']);if(bar&&held<0){if(order<0)names.forEach((n,i)=>a.push(['o'+i,n]));else a.push(['pick',now>=ready?'음료 받기':'준비 중',now<ready])}if(z<-3.5)a.push(['preview','10초 미리보기']);const html=a.map(([id,n,d])=>`<button data-a="${id}" ${d?'disabled':''}>${n}</button>`).join('');if(html!==prev){ui.innerHTML=html;prev=html}msg.textContent=notice+(held>=0?' · '+names[held]+' '+left+'모금':'')+' · '+(socket.connected?'이 방 '+(people.size+1)+'명':'연결 중')}
 ui.onclick=e=>{const a=e.target.dataset.a;if(!a)return;if(a[0]==='o'&&nearBar()&&order<0&&held<0){order=+a[1];ready=Date.now()+2200;notice=names[order]+' 주문 완료'}if(a==='pick'&&order>=0&&Date.now()>=ready&&nearBar()){held=order;order=-1;left=3;notice='음료를 받았어요. 의자에 가까이 가 보세요.'}if(a==='seat'&&nearTable()>=0){sitting=nearTable();[x,z]=tables[sitting];z+=1.13;yaw=0;notice='테이블에 앉았어요.'}if(a==='stand'){sitting=-1;z+=.48;notice='자리에서 일어났어요.'}if(a==='sip'&&sitting>=0&&held>=0){left--;notice=left?'한 모금 마셨어요.':names[held]+'를 다 마셨어요.';if(!left)held=-1}if(a==='preview')preview=Date.now()+10000};document.querySelector('#share').onclick=async()=>{try{await navigator.clipboard.writeText(location.href);notice='친구 링크를 복사했어요.'}catch{prompt('친구에게 보낼 주소',location.href)}};
 addEventListener('keydown',e=>keys.add(e.key.toLowerCase()));addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',()=>keys.clear());const nav=document.querySelector('#nav');nav.innerHTML=[['q','↶'],['w','↑'],['e','↷'],['a','←'],['s','↓'],['d','→']].map(([k,v])=>`<button data-k="${k}">${v}</button>`).join('');for(const b of nav.children){b.onpointerdown=e=>{b.setPointerCapture(e.pointerId);keys.add(b.dataset.k)};b.onpointerup=b.onpointercancel=b.onlostpointercapture=()=>keys.delete(b.dataset.k)}const cv=r.domElement;cv.style.touchAction='none';let drag=null;cv.onpointerdown=e=>{cv.setPointerCapture(e.pointerId);drag=[e.clientX,e.clientY]};cv.onpointerup=cv.onpointercancel=()=>drag=null;cv.onpointermove=e=>{if(!drag)return;yaw-=(e.clientX-drag[0])*.005;pitch=T.MathUtils.clamp(pitch-(e.clientY-drag[1])*.004,-1.15,1.15);drag=[e.clientX,e.clientY]};
-function valid(a,b){return Math.abs(a)<8.7&&b>-10.65&&b<6.75&&!(Math.abs(b+3)<.25&&Math.abs(a)>1.22)&&!(Math.abs(a+5.5)<2.65&&Math.abs(b+.2)<.75)&&!tables.some(([u,v])=>Math.hypot(a-u,b-v)<.98)}let clock=new T.Clock(),old='';r.setAnimationLoop(()=>{const dt=Math.min(clock.getDelta(),.05),now=Date.now();yaw+=((keys.has('q')?1:0)-(keys.has('e')?1:0))*dt*1.8;if(sitting<0){const f=+keys.has('w')-+keys.has('s'),s=+keys.has('d')-+keys.has('a'),k=dt*3/Math.max(1,Math.hypot(f,s));const xx=x+(-Math.sin(yaw)*f+Math.cos(yaw)*s)*k,zz=z+(-Math.cos(yaw)*f-Math.sin(yaw)*s)*k;if(valid(xx,z))x=xx;if(valid(x,zz))z=zz}cam.position.set(x,sitting<0?1.64:1.16,z);cam.rotation.set(pitch,yaw,0,'YXZ');mine.g.visible=held>=0;if(held>=0)mine.top.material.color.setHex(colors[held]);for(const {g,p} of people.values()){g.position.lerp(new T.Vector3(p[0],p[3]?-.37:0,p[1]),Math.min(dt*12,1));g.rotation.y=p[2]}if(now-last>=70){last=now;socket.volatile.emit('pose',[x,z,yaw,+ (sitting>=0),held]);update(now)}const rem=Math.max(0,Math.ceil(((preview||Date.parse('2027-01-01T00:00:00+09:00'))-now)/1000));const pad=n=>String(n).padStart(2,'0');const text=!rem?'2027':rem<=10?String(rem):`${Math.floor(rem/86400)}일 ${pad(Math.floor(rem/3600)%24)}:${pad(Math.floor(rem/60)%60)}:${pad(rem%60)}`;if(text!==old){old=text;ctx.clearRect(0,0,1024,256);ctx.fillStyle='white';ctx.font=`bold ${rem<=10?185:100}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,512,128);const pixels=ctx.getImageData(0,0,1024,256).data;ctx.clearRect(0,0,1024,256);ctx.fillStyle='#ffedb7';for(let y=0;y<256;y+=6)for(let x=0;x<1024;x+=6)if(pixels[(y*1024+x)*4+3]>128){ctx.beginPath();ctx.arc(x,y,1.2+((x*19+y*23)%7)/7,0,Math.PI*2);ctx.fill()}tex.needsUpdate=true}r.render(scene,cam)});
+function valid(a,b){return Math.abs(a)<8.7&&b>-10.65&&b<6.75&&!(Math.abs(b+3)<.25&&Math.abs(a)>1.22)&&!(Math.abs(a+5.5)<2.65&&Math.abs(b+.2)<.75)&&!tables.some(([u,v])=>Math.hypot(a-u,b-v)<.98)}let clock=new T.Clock(),old='';r.setAnimationLoop(()=>{const dt=Math.min(clock.getDelta(),.05),now=Date.now();yaw+=((keys.has('q')?1:0)-(keys.has('e')?1:0))*dt*1.8;if(sitting<0){const f=+keys.has('w')-+keys.has('s'),s=+keys.has('d')-+keys.has('a'),k=dt*3/Math.max(1,Math.hypot(f,s));const xx=x+(-Math.sin(yaw)*f+Math.cos(yaw)*s)*k,zz=z+(-Math.cos(yaw)*f-Math.sin(yaw)*s)*k;if(valid(xx,z))x=xx;if(valid(x,zz))z=zz}cam.position.set(x,sitting<0?1.64:1.16,z);cam.rotation.set(pitch,yaw,0,'YXZ');mine.g.visible=held>=0;if(held>=0)mine.top.material.color.setHex(colors[held]);for(const {g,p} of people.values()){g.position.lerp(new T.Vector3(p[0],p[3]?-.37:0,p[1]),Math.min(dt*12,1));g.rotation.y=p[2]}if(now-last>=70){last=now;socket.volatile.emit('pose',[x,z,yaw,+ (sitting>=0),held]);update(now)}const rem=Math.max(0,Math.ceil(((preview||Date.parse('2027-01-01T00:00:00+09:00'))-now)/1000));const pad=n=>String(n).padStart(2,'0');const text=!rem?'2027':rem<=10?String(rem):`${Math.floor(rem/86400)}일 ${pad(Math.floor(rem/3600)%24)}:${pad(Math.floor(rem/60)%60)}:${pad(rem%60)}`;if(text!==old){old=text;ctx.clearRect(0,0,1024,256);ctx.fillStyle='white';ctx.font=`bold ${rem<=10?185:100}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,512,128);const pixels=ctx.getImageData(0,0,1024,256).data;ctx.clearRect(0,0,1024,256);ctx.fillStyle='#ffedb7';for(let y=0;y<256;y+=6)for(let x=0;x<1024;x+=6)if(pixels[(y*1024+x)*4+3]>128){ctx.beginPath();ctx.arc(x,y,1.2+((x*19+y*23)%7)/7,0,Math.PI*2);ctx.fill()}tex.needsUpdate=true}terraceSeaTime.value = now * .001 % 3600;
+r.render(scene,cam);});
 // TCIK decor patch
 {
 const counter=-5.5;
@@ -23,10 +74,10 @@ const head=new T.Group();staff.add(head);head.position.y=1.67;orb(0,0,0,.138,0xe
 box(0,1.29,0,.36,.52,.22,0xe9dcc7,staff);box(0,1.24,.12,.25,.37,.035,0x596754,staff);box(0,.66,0,.27,.67,.21,0x423532,staff);
 const hand=new T.Group();staff.add(hand);hand.position.set(.22,1.44,.025);box(0,-.14,0,.105,.29,.11,0xe9dcc7,hand);orb(0,-.31,0,.062,0xe4ad87,hand);box(-.22,1.29,0,.10,.31,.11,0xe9dcc7,staff);
 const poster=(x,y,z,w,h,draw,angle=0)=>{const c=document.createElement('canvas');c.width=768;c.height=960;const a=c.getContext('2d');draw(a);const tex=new T.CanvasTexture(c);tex.colorSpace=T.SRGBColorSpace;const m=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({map:tex,side:T.DoubleSide}));m.position.set(x,y,z);m.rotation.y=angle;scene.add(m);return m};
-poster(-7.45,1.62,-1.56,1.14,1.43,a=>{a.fillStyle='#745439';a.fillRect(0,0,768,960);a.fillStyle='#272c27';a.fillRect(26,26,716,908);a.strokeStyle='#b59b72';a.lineWidth=3;a.strokeRect(51,51,666,858);a.textAlign='center';a.fillStyle='#f4e8ca';a.font='bold 73px serif';a.fillText('오늘의 메뉴',384,188);a.font='30px serif';a.fillText('T C I K   ·   C A F É',384,249);a.font='48px sans-serif';['아메리카노','카페라떼','바닐라라떼','핫초코','유자차'].forEach((s,i)=>a.fillText(s,384,368+i*99));a.font='27px serif';a.fillText('카운터 앞에서 주문해 주세요',384,875) });
+poster(-8.88,1.80,0.80,1.14,1.43,a=>{a.fillStyle='#745439';a.fillRect(0,0,768,960);a.fillStyle='#272c27';a.fillRect(26,26,716,908);a.strokeStyle='#b59b72';a.lineWidth=3;a.strokeRect(51,51,666,858);a.textAlign='center';a.fillStyle='#f4e8ca';a.font='bold 73px serif';a.fillText('오늘의 메뉴',384,188);a.font='30px serif';a.fillText('T C I K   ·   C A F É',384,249);a.font='48px sans-serif';['아메리카노','카페라떼','바닐라라떼','핫초코','유자차'].forEach((s,i)=>a.fillText(s,384,368+i*99));a.font='27px serif';a.fillText('카운터 앞에서 주문해 주세요',384,875) },Math.PI/2);
 poster(7.1,1.98,6.86,1.08,1.35,a=>{a.fillStyle='#755338';a.fillRect(0,0,768,960);a.fillStyle='#d9bf91';a.fillRect(27,27,714,906);a.fillStyle='#344959';a.beginPath();a.arc(402,382,173,0,Math.PI*2);a.fill();a.fillStyle='#e9dca9';a.beginPath();a.arc(448,329,52,0,Math.PI*2);a.fill();a.strokeStyle='#8ca2a1';a.lineWidth=8;for(let i=0;i<6;i++){a.beginPath();a.moveTo(260+i*6,412+i*18);a.quadraticCurveTo(405,387+i*18,535-i*6,412+i*18);a.stroke()}a.fillStyle='#4d443c';a.textAlign='center';a.font='54px serif';a.fillText('별이 내리는 카페',384,750)},Math.PI);
 for(const x of [-2.2,2.2]){cyl(x,.18,-4,.19,.15,.31,0x9a6c50);cyl(x,.45,-4,.025,.04,.45,0x566043);for(let i=0;i<6;i++)orb(x+Math.sin(i*2.4)*.13,.48+i*.055,-4+Math.cos(i*2.4)*.1,.09,0x50664e,scene)}
-const water=new T.Mesh(new T.PlaneGeometry(114,65,70,52),new T.ShaderMaterial({uniforms:{time:{value:0}},vertexShader:`uniform float time; varying vec2 wp; varying float swell; void main(){vec3 p=position;wp=p.xy; swell=sin(p.y*.96+time*1.65+p.x*.14)*.6+sin(p.x*.5-p.y*.74+time*1.1)*.4;p.z+=swell*.17;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,fragmentShader:`uniform float time;varying vec2 wp;varying float swell;void main(){float x=wp.x,y=wp.y;float a=sin(y*2.7+time*1.9+sin(x*.49)*.8);float b=sin(y*5.8+time*2.1+x*.46);float ridge=smoothstep(.55,.99,a)*(.55+.45*b);float lane=exp(-abs(x+sin(y*.55+time)*1.35)*.25);float glow=pow(max(0.,sin(x*3.3+y*2.6-time*1.8)*sin(y*4.1+time*1.17)),6.);float foam=smoothstep(.91,.995,a)*smoothstep(.52,.97,sin(x*.82+y*.62))*exp(-abs(y+29.)*.18);vec3 col=mix(vec3(.047,.083,.153),vec3(.11,.225,.33),.33+swell*.21+ridge*.32);col+=vec3(.67,.79,.94)*(glow*lane*.66+foam*.42);gl_FragColor=vec4(col,1.);}` }));water.rotation.x=-Math.PI/2;water.position.set(0,-.14,-43.45);scene.add(water);
+const water=new T.Mesh(new T.PlaneGeometry(260,350,144,200),new T.ShaderMaterial({uniforms:{time:{value:0}},vertexShader:`uniform float time; varying vec2 wp; varying float swell; void main(){vec3 p=position;wp=p.xy; swell=sin(p.y*.96+time*1.65+p.x*.14)*.6+sin(p.x*.5-p.y*.74+time*1.1)*.4;p.z+=swell*.17;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,fragmentShader:`uniform float time;varying vec2 wp;varying float swell;void main(){float x=wp.x,y=wp.y;float a=sin(y*2.7+time*1.9+sin(x*.49)*.8);float b=sin(y*5.8+time*2.1+x*.46);float ridge=smoothstep(.55,.99,a)*(.55+.45*b);float lane=exp(-abs(x+sin(y*.55+time)*1.35)*.25);float glow=pow(max(0.,sin(x*3.3+y*2.6-time*1.8)*sin(y*4.1+time*1.17)),6.);float foam=smoothstep(.91,.995,a)*smoothstep(.52,.97,sin(x*.82+y*.62))*exp(-abs(y+29.)*.18);vec3 col=mix(vec3(.047,.083,.153),vec3(.11,.225,.33),.33+swell*.21+ridge*.32);col+=vec3(.67,.79,.94)*(glow*lane*.66+foam*.42);gl_FragColor=vec4(col,1.);}` }));water.rotation.x=-Math.PI/2;water.position.set(0,-.40,-43.45);scene.add(water);
 const begin=performance.now();function decorate(now){const t=(now-begin)/1000;water.material.uniforms.time.value=t;head.rotation.y=Math.sin(t*.85)*.15;hand.rotation.x=-.24+Math.sin(t*2)*.19;requestAnimationFrame(decorate)}requestAnimationFrame(decorate);
 }
 
@@ -47,7 +98,21 @@ function frame(){const now=Date.now();if(preview&&preview!==seen){seen=preview;e
 const actual=Date.parse('2027-01-01T00:00:00+09:00'), duration=3600000;
 const round=(g,x,y,z,a,b,c,color)=>{const m=new T.Mesh(new T.SphereGeometry(1,16,12),new T.MeshStandardMaterial({color}));m.position.set(x,y,z);m.scale.set(a,b,c);g.add(m)};
 function doll(g,staff=false){for(const m of g.children)if(m.isMesh)m.visible=false;const skin=0xe8ae89,shirt=staff?0xe7d5b9:0x75938d;round(g,0,.94,0,.22,.21,.20,skin);round(g,0,1.045,-.023,.222,.136,.20,0x3b2826);if(staff)round(g,.125,1.105,-.10,.082,.077,.078,0x3b2826);round(g,0,.61,0,.23,.27,.165,shirt);round(g,0,.56,.13,.155,.183,.047,staff?0x55694d:0x567772);for(const s of [-1,1]){round(g,s*.221,.60,.015,.073,.174,.085,shirt);round(g,s*.225,.465,.041,.061,.064,.06,skin);round(g,s*.105,.24,0,.094,.19,.09,0x483733);round(g,s*.105,.075,.052,.096,.07,.13,0x342a29);round(g,s*.077,.933,.185,.014,.02,.012,0x382826);round(g,s*.127,.887,.157,.033,.019,.015,0xd98f7c)}}
-const worker=scene.children.find(o=>o.isGroup&&Math.abs(o.position.x+5.5)<.01&&Math.abs(o.position.z+1.02)<.01);let staff;if(worker){for(const o of worker.children)o.visible=false;staff=new T.Group();staff.position.y=.51;worker.add(staff);doll(staff,true)}
+const worker = scene.children.find(o =>
+  o.isGroup &&
+  Math.abs(o.position.x + 5.5) < .01 &&
+  Math.abs(o.position.z + 1.02) < .01
+);
+
+let staff;
+if (worker) {
+  for (const o of worker.children) o.visible = false;
+  staff = new T.Group();
+  staff.position.set(0, -.012, -.25);
+  staff.scale.setScalar(1.4);
+  worker.add(staff);
+  doll(staff, true);
+}
 const large=tables.slice(),small=[[-6.65, 4.25], [-3.35, 4.45], [7.10, -1.42], [3.55, -1.65]],spots=[];
 function chair(u,v,a,existing=false){const cx=u+Math.sin(a)*1.12,cz=v+Math.cos(a)*1.12;spots.push([cx,cz,a]);if(existing)return;const g=new T.Group();g.position.set(cx,0,cz);g.rotation.y=a;scene.add(g);box(0,.45,0,.49,.095,.49,0x875c43,g);box(0,.68,.215,.47,.35,.085,0x765039,g);for(const dx of [-.18,.18])for(const dz of [-.18,.18])box(dx,.22,dz,.052,.44,.052,0x52372a,g)}
 for(const [u,v] of large)for(let i=0;i<5;i++)chair(u,v,i*Math.PI*2/5,i===0);for(const [u,v] of small){tables.push([u,v]);cyl(u,.78,v,.63,.63,.105,0x75503a);cyl(u,.38,v,.09,.15,.76,0x382921);chair(u,v,Math.PI/2);chair(u,v,-Math.PI/2)}
@@ -430,4 +495,279 @@ function lamp(x,y,z,s){cyl(x,y+.023*s,z,.19*s,.21*s,.045*s,black);cyl(x,y+.24*s,
     signboard.rotation.y = Math.PI;
     scene.add(signboard);
   }
+}
+// TCIK High Ceiling & Simple Roof
+{
+  const lift = 1.635;
+
+  // 기존 천장판, 천장 보, 조명 기구를 함께 올립니다.
+  // 실제로 실내를 비추는 조명은 그대로 두어 테이블이 어두워지지 않게 합니다.
+  for (const mesh of scene.children) {
+    if (!mesh.isMesh) continue;
+    const { y, z } = mesh.position;
+    if (z > -2.8 && y >= 2.918 && y <= 3.451) {
+      mesh.position.y += lift;
+    }
+  }
+
+  // 기존 벽 위를 메워 천장까지 이어 줍니다.
+  const wallColor = 0xf5efe3;
+  const wallBottom = 3.35;
+  const wallTop = 5.25;
+  const wallHeight = wallTop - wallBottom;
+  const wallY = (wallBottom + wallTop) / 2;
+
+  for (const z of [-3, 7]) {
+    box(0, wallY, z, 18, wallHeight, .2, wallColor);
+  }
+  for (const x of [-9, 9]) {
+    box(x, wallY, 2, .2, wallHeight, 10, wallColor);
+  }
+
+  // 두 장의 지붕판: 테라스 위로는 짧게만 나옵니다.
+  const roofColor = 0x3b302b;
+  const eaveY = 5.27;
+  const halfSpan = 5.42;
+  const rise = 1.02;
+  const slope = Math.atan2(rise, halfSpan);
+  const roofDepth = Math.hypot(halfSpan, rise) + .06;
+
+  for (const side of [-1, 1]) {
+    const panel = box(
+      0, eaveY + rise / 2, 2 + side * halfSpan / 2,
+      18.72, .16, roofDepth, roofColor
+    );
+    panel.rotation.x = side * slope;
+  }
+
+  // 건물 양옆에서 보이는 지붕 아래 삼각형을 막습니다.
+  const gable = new T.Shape();
+  gable.moveTo(-5.1, 0);
+  gable.lineTo(5.1, 0);
+  gable.lineTo(0, rise - .02);
+  gable.closePath();
+
+  const gableGeo = new T.ShapeGeometry(gable);
+  const gableMat = new T.MeshStandardMaterial({
+    color: wallColor,
+    side: T.DoubleSide
+  });
+
+  for (const x of [-9.1, 9.1]) {
+    const end = new T.Mesh(gableGeo, gableMat);
+    end.rotation.y = Math.PI / 2;
+    end.position.set(x, wallTop, 2);
+    scene.add(end);
+  }
+}
+// TCIK Main Entrance — 파일 맨 끝에 한 번만 추가
+{
+  const walnut = 0x563b2b;
+  const edge = 0x9a704b;
+  const brass = 0xa77b42;
+
+  // 원목 문틀: 기존 통로 양옆에만 설치합니다.
+  for (const x of [-1.52, 1.52]) {
+    box(x, 1.51, -3, .25, 3.02, .38, walnut);
+    box(x, 1.51, -3.205, .045, 2.90, .03, edge);
+    box(x, .12, -3, .31, .24, .42, 0x3e3029);
+  }
+  box(0, 3.055, -3, 3.34, .22, .42, walnut);
+  box(0, 3.18, -3, 3.46, .065, .46, edge);
+
+  // 테라스 쪽에서 읽는 정문 간판.
+  const board = document.createElement('canvas');
+  board.width = 1024;
+  board.height = 256;
+  const ink = board.getContext('2d');
+
+  ink.fillStyle = '#34271e';
+  ink.fillRect(0, 0, 1024, 256);
+  ink.strokeStyle = '#b18a58';
+  ink.lineWidth = 4;
+  ink.strokeRect(18, 18, 988, 220);
+
+  ink.textAlign = 'center';
+  ink.fillStyle = '#f4e3bd';
+  ink.font = 'bold 100px Georgia, serif';
+  ink.fillText('TCIK', 512, 120);
+  ink.font = '38px "Malgun Gothic", sans-serif';
+  ink.fillText('내가 아는 카페', 512, 194);
+
+  const map = new T.CanvasTexture(board);
+  map.colorSpace = T.SRGBColorSpace;
+  box(0, 3.89, -3.16, 2.68, .72, .16, walnut);
+
+  const lettering = new T.Mesh(
+    new T.PlaneGeometry(2.56, .64),
+    new T.MeshBasicMaterial({ map })
+  );
+  lettering.rotation.y = Math.PI;
+  lettering.position.set(0, 3.89, -3.245);
+  scene.add(lettering);
+
+  // 양쪽 황동 벽등: 밝은 유리와 은은한 주황빛.
+  for (const x of [-1.84, 1.84]) {
+    box(x, 3.63, -3.13, .18, .28, .07, brass);
+    box(x, 3.61, -3.26, .052, .052, .25, brass);
+
+    const glass = box(x, 3.55, -3.43, .17, .26, .16, 0xffd69a);
+    glass.material.emissive.setHex(0xffb76a);
+    glass.material.emissiveIntensity = 1.1;
+
+    for (const y of [3.40, 3.70]) {
+      box(x, y, -3.43, .22, .045, .21, brass);
+    }
+
+    const light = new T.PointLight(0xffbb7b, 3, 3);
+    light.position.set(x, 3.53, -3.58);
+    scene.add(light);
+  }
+
+  // 바닥에 거의 붙는 현관 매트. 이동 판정은 바꾸지 않습니다.
+  box(0, .006, -3.72, 1.82, .022, .78, 0x514138);
+  box(0, .019, -3.72, 1.68, .006, .64, 0x79614b);
+}
+// TCIK Open Double Doors
+{
+  // 커튼은 제거하되, 정문 위의 기존 가로 벽 띠는 계속 숨깁니다.
+  const wallStrip = scene.children.find(m => {
+    const p = m.geometry?.parameters;
+    return m.isMesh && p &&
+      Math.abs(p.width - 3) < .01 &&
+      Math.abs(p.height - .73) < .01 &&
+      Math.abs(m.position.x) < .01 &&
+      Math.abs(m.position.y - 3.04) < .01 &&
+      Math.abs(m.position.z + 3) < .01;
+  });
+  if (wallStrip) wallStrip.visible = false;
+
+  const wood = 0x563b2b;
+  const inset = 0x755036;
+  const trim = 0x916845;
+  const brass = 0xb08a51;
+
+  for (const side of [-1, 1]) {
+    const door = new T.Group();
+    door.position.set(side * 1.40, .02, -3.22);
+    door.rotation.y = -side * Math.PI * .60;
+    scene.add(door);
+
+    // 문짝의 모든 부품을 경첩을 기준으로 배치합니다.
+    const part = (u, y, z, w, h, d, color) =>
+      box(-side * u, y, z, w, h, d, color, door);
+
+    // 두 세로 틀과 위·가운데·아래 가로대.
+    for (const u of [.055, 1.245]) {
+      part(u, 1.40, 0, .11, 2.80, .095, wood);
+    }
+    for (const y of [.08, 1.03, 2.73]) {
+      part(.65, y, 0, 1.30, .14, .095, wood);
+    }
+
+    // 아래쪽 원목 판과 위쪽 창살.
+    part(.65, .55, 0, 1.08, .80, .065, inset);
+    for (const u of [.31, .65, .99]) {
+      part(u, 1.88, 0, .038, 1.56, .065, trim);
+    }
+    for (const y of [1.60, 2.20]) {
+      part(.65, y, 0, 1.08, .040, .065, trim);
+    }
+
+    // 문 양면의 황동 손잡이와 경첩.
+    for (const face of [-1, 1]) {
+      part(1.14, 1.03, face * .065, .055, .20, .035, brass);
+      part(1.14, 1.03, face * .10, .035, .13, .035, brass);
+    }
+    for (const y of [.37, 1.44, 2.43]) {
+      cyl(0, y, 0, .034, .034, .15, brass, door);
+    }
+  }
+}
+// TCIK Facade Wall Piers — 파일 맨 끝에 한 번만 추가
+{
+  const plaster = 0xf5efe3; // 기존 외벽과 같은 크림색
+  const timber = 0x563b2b;  // 기존 정문과 같은 원목색
+
+  for (const x of [-4.5, 4.5]) {
+    // 아래쪽 흰 벽에서 위쪽 흰 벽까지 이어지는 벽기둥.
+    // 창살보다 깊게 만들어 기둥 안쪽의 창살은 보이지 않게 합니다.
+    box(x, 2.095, -2.98, .86, 2.57, .48, plaster);
+
+    // 창과 벽이 만나는 양쪽에 얇은 원목 마감.
+    for (const dx of [-.445, .445]) {
+      box(x + dx, 1.83, -3.115, .038, 1.94, .15, timber);
+    }
+  }
+}
+// TCIK Shooting Stars — 파일 맨 끝에 한 번만 추가
+{
+  const count = 16;
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const geometry = new T.BufferGeometry();
+
+  // 앞부분은 밝게, 꼬리 끝은 어둡게 만듭니다.
+  for (let i = 0; i < count; i++) {
+    const glow = (1 - i / (count - 1)) ** 2;
+    colors.set([.77 * glow, .87 * glow, glow], i * 3);
+  }
+  geometry.setAttribute('position', new T.BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new T.BufferAttribute(colors, 3));
+
+  const material = new T.LineBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    depthWrite: false,
+    blending: T.AdditiveBlending,
+    fog: false
+  });
+
+  const meteor = new T.Line(geometry, material);
+  meteor.visible = false;
+  meteor.frustumCulled = false;
+  scene.add(meteor);
+
+  const random = (min, max) => min + Math.random() * (max - min);
+  let next = performance.now() + random(2200, 5000);
+  let flight = null;
+
+  function shootingStarFrame(now) {
+    if (!flight && now >= next) {
+      flight = {
+        start: now,
+        duration: random(550, 950),
+        x: random(-30, 30),
+        y: random(13, 23),
+        z: random(-66, -44),
+        dx: random(8, 16) * (Math.random() < .5 ? -1 : 1),
+        dy: -random(4, 8)
+      };
+      meteor.visible = true;
+    }
+
+    if (flight) {
+      const progress = (now - flight.start) / flight.duration;
+      if (progress >= 1) {
+        meteor.visible = false;
+        flight = null;
+        next = now + random(4000, 15000);
+      } else {
+        for (let i = 0; i < count; i++) {
+          const trail = Math.max(0, progress - .34 * i / (count - 1));
+          positions.set([
+            flight.x + flight.dx * trail,
+            flight.y + flight.dy * trail,
+            flight.z
+          ], i * 3);
+        }
+        geometry.attributes.position.needsUpdate = true;
+        material.opacity = Math.min(1, progress * 10) * (1 - progress ** 3);
+      }
+    }
+
+    requestAnimationFrame(shootingStarFrame);
+  }
+
+  requestAnimationFrame(shootingStarFrame);
 }
