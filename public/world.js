@@ -1518,6 +1518,8 @@ function lamp(x,y,z,s){cyl(x,y+.023*s,z,.19*s,.21*s,.045*s,black);cyl(x,y+.24*s,
   const fisherman = new T.Group();
   fisherman.name = 'tcikFisherman';
   fisherman.position.set(-7, 0, -5.5);
+// 정문 중앙의 바깥쪽을 바라봅니다.
+fisherman.rotation.y = Math.atan2(7, 2.5);
   scene.add(fisherman);
 
   const skin = 0xe0ad85;
@@ -2012,7 +2014,118 @@ function lamp(x,y,z,s){cyl(x,y+.023*s,z,.19*s,.21*s,.045*s,black);cyl(x,y+.24*s,
         '이곳에서 바다를 바라보며 낚시할 수 있어요.';
     }
   }
+  // 운세 결과를 별도의 중앙 팝업으로 보여 줍니다.
+  function showFortunePopup(fortune, disclaimer) {
+    // 이전 결과창이 남아 있다면 정리합니다.
+    document.getElementById('tcik-fortune-dialog')?.remove();
 
+    const dialog = document.createElement('dialog');
+    dialog.id = 'tcik-fortune-dialog';
+
+    Object.assign(dialog.style, {
+      width: '420px',
+      maxWidth: 'calc(100vw - 32px)',
+      maxHeight: '80vh',
+      overflowY: 'auto',
+      boxSizing: 'border-box',
+      padding: '28px 24px',
+      border: '2px solid #b89a64',
+      borderRadius: '18px',
+      background: '#faf1df',
+      color: '#493527',
+      textAlign: 'center',
+      boxShadow: '0 18px 70px rgba(0, 0, 0, .5)'
+    });
+
+    if (!document.getElementById('tcik-fortune-style')) {
+      const style = document.createElement('style');
+      style.id = 'tcik-fortune-style';
+      style.textContent = `
+        #tcik-fortune-dialog::backdrop {
+          background: rgba(7, 15, 27, .72);
+        }
+      `;
+      document.head.append(style);
+    }
+
+    const title = document.createElement('h2');
+    title.textContent = '낚아 올린 신년 운세';
+    title.style.margin = '0 0 18px';
+    title.style.fontSize = '24px';
+
+    const category = document.createElement('div');
+    category.textContent = fortune.category;
+
+    Object.assign(category.style, {
+      display: 'inline-block',
+      padding: '6px 16px',
+      borderRadius: '20px',
+      background: '#e6d5b1',
+      fontSize: '16px',
+      fontWeight: 'bold'
+    });
+
+    const message = document.createElement('p');
+    message.textContent = fortune.message;
+
+    Object.assign(message.style, {
+      margin: '22px 0',
+      fontSize: '19px',
+      lineHeight: '1.8',
+      whiteSpace: 'pre-line',
+      overflowWrap: 'anywhere'
+    });
+
+    const note = document.createElement('p');
+    note.textContent = disclaimer || '재미로 즐기는 신년 운세입니다.';
+    note.style.fontSize = '13px';
+    note.style.color = '#806e5c';
+
+    const finished = document.createElement('p');
+    finished.textContent = '낚시를 마치고 의자를 접었어요.';
+    finished.style.fontSize = '14px';
+
+    const closeButton = document.createElement('button');
+    closeButton.textContent = '확인';
+
+    Object.assign(closeButton.style, {
+      minWidth: '120px',
+      minHeight: '44px',
+      marginTop: '10px',
+      fontSize: '16px'
+    });
+
+    closeButton.onclick = () => dialog.close();
+
+    // 팝업을 읽는 동안 이동 키 입력이 카페로 전달되지 않게 합니다.
+    dialog.addEventListener('keydown', event => {
+      event.stopPropagation();
+    });
+
+    dialog.addEventListener('keyup', event => {
+      event.stopPropagation();
+    });
+
+    dialog.addEventListener('close', () => {
+      keys.clear();
+      dialog.remove();
+    });
+
+    dialog.append(
+      title,
+      category,
+      message,
+      note,
+      finished,
+      closeButton
+    );
+
+    document.body.append(dialog);
+
+    keys.clear();
+    dialog.showModal();
+    closeButton.focus();
+  }
   function sendFishingRequest(event) {
     if (fishingPending) return;
 
@@ -2067,15 +2180,23 @@ function lamp(x,y,z,s){cyl(x,y+.023*s,z,.19*s,.21*s,.045*s,black);cyl(x,y+.24*s,
         notice = '접이식 의자를 펴고 낚시를 시작했어요.';
       }
 
-      if (event === 'fishing:reel') {
-        biteDeadline = performance.now() + response.waitMs;
+            if (event === 'fishing:reel') {
+        fishingActive = false;
+        biteDeadline = 0;
 
-        result.textContent =
-          '[' + response.fortune.category + ']\n' +
-          response.fortune.message + '\n\n' +
-          response.disclaimer;
+        if (sitting === fishingSeatMarker) {
+          sitting = -1;
+        }
 
-        notice = '신년 운세를 낚았어요!';
+        // 작은 안내창의 이전 결과는 비웁니다.
+        result.textContent = '';
+
+        notice = '신년 운세를 낚고 낚시를 마쳤어요.';
+
+        showFortunePopup(
+          response.fortune,
+          response.disclaimer
+        );
       }
 
       if (event === 'fishing:stop') {
