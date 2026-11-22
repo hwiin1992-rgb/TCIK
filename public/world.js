@@ -303,10 +303,11 @@ const target=Date.parse('2027-01-01T00:00:00+09:00');
 const card=document.createElement('canvas');card.width=1400;card.height=400;
 const ink=card.getContext('2d');ink.textAlign='center';ink.textBaseline='middle';ink.font='italic 145px Georgia, "Times New Roman", serif';ink.shadowColor='#ffb75e';ink.shadowBlur=32;const gold=ink.createLinearGradient(0,115,0,275);gold.addColorStop(0,'#fff9de');gold.addColorStop(.55,'#ffe4a1');gold.addColorStop(1,'#ecad61');ink.fillStyle=gold;ink.fillText('Happy New Year',700,196);ink.shadowBlur=0;ink.fillStyle='#fff5cb';for(const [x,y,s] of [[130,123,18],[1260,248,16],[233,292,10],[1160,107,12]]){ink.beginPath();ink.moveTo(x,y-s);ink.quadraticCurveTo(x+3,y-3,x+s,y);ink.quadraticCurveTo(x+3,y+3,x,y+s);ink.quadraticCurveTo(x-3,y+3,x-s,y);ink.quadraticCurveTo(x-3,y-3,x,y-s);ink.fill()}
 const map=new T.CanvasTexture(card);map.colorSpace=T.SRGBColorSpace;const greeting=new T.Mesh(new T.PlaneGeometry(22,6.29),new T.MeshBasicMaterial({map,transparent:true,depthWrite:false,fog:false}));greeting.position.set(0,8.3,-35);greeting.visible=false;scene.add(greeting);
-const palettes=[0xffcc80,0xff93b8,0xa3dafe,0xe0baff,0xfff0c8];const bursts=[];let seen=0,end=0,was=false,next=0,serial=0;
+// 이전 불꽃 효과는 끄고, 새 불꽃 연출만 사용합니다.
+const legacyFireworksEnabled = false;const palettes=[0xffcc80,0xff93b8,0xa3dafe,0xe0baff,0xfff0c8];const bursts=[];let seen=0,end=0,was=false,next=0,serial=0;
 function burst(now){const n=76,x=[-12,11,-6,7,0][serial%5],y=12+Math.random()*5,z=-36-Math.random()*7;const pos=new Float32Array(n*3),vel=[];for(let i=0;i<n;i++){const a=i*2.39996,h=2*(i+.5)/n-1,j=Math.sqrt(1-h*h),s=1.6+Math.random()*3.5;vel.push([Math.cos(a)*j*s,h*s,Math.sin(a)*j*s]);pos.set([x,y,z],i*3)}const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(pos,3));const m=new T.PointsMaterial({color:palettes[serial++%palettes.length],size:.19,transparent:true,depthWrite:false,blending:T.AdditiveBlending,fog:false});const pts=new T.Points(g,m);pts.frustumCulled=false;scene.add(pts);bursts.push({pts,g,m,pos,vel,now,x,y,z});}
 function clear(){for(const b of bursts.splice(0)){scene.remove(b.pts);b.g.dispose();b.m.dispose()}}
-function frame(){const now=Date.now();if(preview&&preview!==seen){seen=preview;end=preview;was=false;serial=0;clear()}const show=now>=(end||target);greeting.visible=show;sign.visible=!show;if(show&&!was){next=now;was=true}if(show&&serial<9&&now>=next){burst(now);next=now+480+Math.random()*240}for(let i=bursts.length-1;i>=0;i--){const b=bursts[i],t=(now-b.now)/1000;if(t>2.65){scene.remove(b.pts);b.g.dispose();b.m.dispose();bursts.splice(i,1);continue}const spread=(1-Math.exp(-t*.67))/.67;for(let j=0;j<b.vel.length;j++){const [a,c,d]=b.vel[j];b.pos[j*3]=b.x+a*spread;b.pos[j*3+1]=b.y+c*spread-1.08*t*t;b.pos[j*3+2]=b.z+d*spread}b.g.attributes.position.needsUpdate=true;b.m.opacity=Math.pow(1-t/2.65,1.15)}requestAnimationFrame(frame)}requestAnimationFrame(frame);
+function frame(){const now=Date.now();if(preview&&preview!==seen){seen=preview;end=preview;was=false;serial=0;clear()}const show=now>=(end||target);greeting.visible=show;sign.visible=!show;if(show&&!was){next=now;was=true}if(legacyFireworksEnabled&&show&&serial<9&&now>=next){burst(now);next=now+480+Math.random()*240}for(let i=bursts.length-1;i>=0;i--){const b=bursts[i],t=(now-b.now)/1000;if(t>2.65){scene.remove(b.pts);b.g.dispose();b.m.dispose();bursts.splice(i,1);continue}const spread=(1-Math.exp(-t*.67))/.67;for(let j=0;j<b.vel.length;j++){const [a,c,d]=b.vel[j];b.pos[j*3]=b.x+a*spread;b.pos[j*3+1]=b.y+c*spread-1.08*t*t;b.pos[j*3+2]=b.z+d*spread}b.g.attributes.position.needsUpdate=true;b.m.opacity=Math.pow(1-t/2.65,1.15)}requestAnimationFrame(frame)}requestAnimationFrame(frame);
 }
 
 // TCIK Galaxy upgrade — local world.js
@@ -495,10 +496,326 @@ const c=document.createElement('canvas');c.width=1400;c.height=340;const ctx=c.g
 function points(pos,opts,rgb){const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));if(rgb)g.setAttribute('color',new T.Float32BufferAttribute(rgb,3));const m=new T.PointsMaterial({transparent:true,depthWrite:false,blending:T.AdditiveBlending,fog:false,vertexColors:!!rgb,...opts});const o=new T.Points(g,m);scene.add(o);return o}const words=points(stars,{size:.13},colors),milky=points(band,{color:0x9ca8ff,size:.09,opacity:.48});for(const o of [words,milky]){o.position.set(0,8.3,-34);o.visible=false}const old=scene.children.find(o=>o.isMesh&&Math.abs(o.position.y-8.3)<.01&&Math.abs(o.position.z+35)<.01);if(old)old.material.visible=false;
 let ac,bus,noise,on=false;sound.onclick=async()=>{try{if(!ac){const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio){sound.textContent='폭죽 소리 미지원';return}ac=new Audio();bus=ac.createGain();bus.gain.value=0;const limiter=ac.createDynamicsCompressor();bus.connect(limiter);limiter.connect(ac.destination);noise=ac.createBuffer(1,ac.sampleRate,ac.sampleRate);const a=noise.getChannelData(0);for(let i=0;i<a.length;i++)a[i]=Math.random()*2-1}if(on)on=false;else{await ac.resume();on=ac.state==='running'}bus.gain.value=on?.35:0;sound.textContent=on?'폭죽 소리 끄기':'폭죽 소리 켜기';sound.setAttribute('aria-pressed',String(on))}catch{sound.textContent='폭죽 소리 다시 켜기'}};
 function play(ox){if(!on||ac.state!=='running'||document.hidden)return;const t=ac.currentTime,mix=ac.createGain(),pan=ac.createStereoPanner?.();if(pan){pan.pan.value=Math.max(-.8,Math.min(.8,ox/17));mix.connect(pan);pan.connect(bus)}else mix.connect(bus);const osc=ac.createOscillator(),g=ac.createGain();osc.frequency.setValueAtTime(102+Math.random()*18,t);osc.frequency.exponentialRampToValueAtTime(37,t+.25);g.gain.setValueAtTime(.001,t);g.gain.linearRampToValueAtTime(.42,t+.018);g.gain.exponentialRampToValueAtTime(.001,t+.48);osc.connect(g);g.connect(mix);osc.start(t);osc.stop(t+.52);osc.onended=()=>{osc.disconnect();g.disconnect();mix.disconnect();pan?.disconnect()};function crack(at,len,hz,vol){const src=ac.createBufferSource(),filter=ac.createBiquadFilter(),env=ac.createGain();src.buffer=noise;filter.type='bandpass';filter.frequency.value=hz;filter.Q.value=.65;env.gain.setValueAtTime(vol,at);env.gain.exponentialRampToValueAtTime(.001,at+len);src.connect(filter);filter.connect(env);env.connect(mix);src.start(at,Math.random()*.4,len);src.onended=()=>{src.disconnect();filter.disconnect();env.disconnect()}}crack(t,.32,380,.32);for(let i=0;i<4;i++)crack(t+.11+i*.105,.075,1900+Math.random()*1700,.09)}
-const shells=[];let last=0,end=actual,next=actual,index=0;
-function launch(now){const k=index++%6,ox=[-13,13,-8,9,-3,4][k]*(.85+Math.random()*.28),oy=10+Math.random()*7,oz=-37-Math.random()*9;const pos=[],rgb=[],vel=[];for(let i=0;i<156;i++){const a=i*2.39996,h=2*(i+.5)/156-1,r=Math.sqrt(1-h*h),inner=i%3===0,s=(inner?2.4:5.1)*(.83+Math.random()*.35);vel.push([Math.cos(a)*r*s,h*s,Math.sin(a)*r*s]);pos.push(ox,oy,oz);const cl=new T.Color().setHSL(([.045,.81,.56,.92,.12,.43][k]+(inner?.11:0))%1,.92,.58+Math.random()*.34);rgb.push(cl.r,cl.g,cl.b)}const o=points(pos,{size:.18},rgb);o.frustumCulled=false;shells.push({o,ox,oy,oz,vel,now});play(ox)}
-function remove(s){scene.remove(s.o);s.o.geometry.dispose();s.o.material.dispose()}
-function galaxyFrame(){const now=Date.now();sit.style.display=sitting<0&&z>-3&&dist(nearest())<=.83?'block':'none';for(const {g} of people.values())if(!g.userData.tcikRoundAvatar){doll(g);g.userData.tcikRoundAvatar=true}if(staff)staff.rotation.y=.12*Math.sin(now*.0014);if(preview&&preview!==last){last=preview;end=next=preview;index=0;for(const s of shells.splice(0))remove(s)}const show=now>=end;words.visible=milky.visible=show;sign.visible=!show;if(show){words.material.opacity=.94+.05*Math.sin(now*.003);words.material.size=.13+.008*Math.sin(now*.004);if(now<end+duration&&now>=next){launch(now);if(index%4===1)launch(now);next=now+300+Math.random()*240}}for(let i=shells.length-1;i>=0;i--){const s=shells[i],age=(now-s.now)/1000;if(age>=3){remove(s);shells.splice(i,1);continue}const e=(1-Math.exp(-age*.64))/.64,p=s.o.geometry.attributes.position;for(let j=0;j<s.vel.length;j++){const [a,b,c]=s.vel[j];p.setXYZ(j,s.ox+a*e,s.oy+b*e-1.05*age*age,s.oz+c*e)}p.needsUpdate=true;s.o.material.opacity=(1-age/3)**.85*(.8+.2*Math.sin(age*23+i))}requestAnimationFrame(galaxyFrame)}requestAnimationFrame(galaxyFrame);
+// 불꽃 수와 꼬리 길이를 화면 환경에 맞춰 제한합니다.
+const compactFireworks = matchMedia(
+  '(any-pointer: coarse), (max-width: 900px)'
+).matches;
+
+const fireworkCount = compactFireworks ? 90 : 150;
+const trailCount = compactFireworks ? 4 : 6;
+const maxShells = compactFireworks ? 6 : 10;
+
+// 사각형 점 대신 부드러운 빛으로 보이게 합니다.
+const sparkCanvas = document.createElement('canvas');
+sparkCanvas.width = 64;
+sparkCanvas.height = 64;
+
+const sparkContext = sparkCanvas.getContext('2d');
+const sparkGradient = sparkContext.createRadialGradient(
+  32, 32, 0, 32, 32, 32
+);
+
+sparkGradient.addColorStop(0, 'rgba(255,255,255,1)');
+sparkGradient.addColorStop(.15, 'rgba(255,255,255,1)');
+sparkGradient.addColorStop(.4, 'rgba(255,255,255,.38)');
+sparkGradient.addColorStop(1, 'rgba(255,255,255,0)');
+
+sparkContext.fillStyle = sparkGradient;
+sparkContext.fillRect(0, 0, 64, 64);
+
+const sparkTexture = new T.CanvasTexture(sparkCanvas);
+
+const shells = [];
+let last = 0;
+let end = actual;
+let next = actual;
+let index = 0;
+
+// 금빛 버드나무형, 파스텔 겹꽃형, 고리형을 번갈아 만듭니다.
+function launch(now, fixedX = null) {
+  if (shells.length >= maxShells) return;
+
+  const serial = index++;
+  const type = serial % 3;
+
+  const ox = fixedX ?? (
+    [-12, 11, -6, 7, 0, 3][serial % 6]
+    + (Math.random() - .5) * 2
+  );
+
+  const oy = 14 + Math.random() * 5;
+  const oz = -40 - Math.random() * 6;
+
+  const life = type === 0 ? 4.8 : 3.7;
+  const drag = type === 0 ? .46 : .68;
+  const gravity = type === 0 ? .82 : .68;
+
+  const velocities = [];
+  const baseColors = [];
+  const phases = [];
+
+  const positions = new Float32Array(
+    fireworkCount * trailCount * 3
+  );
+
+  const rgb = new Float32Array(positions.length);
+
+  const pastelHues = [.94, .76, .55, .10, .43];
+  const hue = pastelHues[serial % pastelHues.length];
+
+  for (let i = 0; i < fireworkCount; i++) {
+    const angle = i * 2.399963;
+    const height = 2 * (i + .5) / fireworkCount - 1;
+    const radius = Math.sqrt(1 - height * height);
+
+    let vx;
+    let vy;
+    let vz;
+    let color;
+
+    if (type === 2) {
+      // 고리와 안쪽 꽃이 함께 펼쳐집니다.
+      const ring = i < fireworkCount * .72;
+
+      if (ring) {
+        const a = i / (fireworkCount * .72) * Math.PI * 2;
+        const speed = 5.2 + Math.random() * .25;
+
+        vx = Math.cos(a) * speed;
+        vy = Math.sin(a) * speed;
+        vz = Math.sin(a) * 1.1;
+      } else {
+        vx = Math.cos(angle) * radius * 2.6;
+        vy = height * 2.6;
+        vz = Math.sin(angle) * radius * 2.6;
+      }
+
+      color = new T.Color().setHSL(
+        ring ? hue : (hue + .18) % 1,
+        .65,
+        .72
+      );
+    } else {
+      // 겹꽃은 안쪽과 바깥쪽의 크기·색을 다르게 만듭니다.
+      const inner = type === 1 && i % 3 === 0;
+      const speed = (
+        inner ? 2.5 : type === 0 ? 4.5 : 5.4
+      ) * (.88 + Math.random() * .24);
+
+      vx = Math.cos(angle) * radius * speed;
+      vy = height * speed;
+      vz = Math.sin(angle) * radius * speed;
+
+      color = new T.Color().setHSL(
+        type === 0
+          ? .105 + Math.random() * .035
+          : (hue + (inner ? .18 : 0)) % 1,
+        type === 0 ? .8 : .62,
+        type === 0 ? .65 : .74
+      );
+    }
+
+    velocities.push([vx, vy, vz]);
+    baseColors.push([color.r, color.g, color.b]);
+    phases.push(Math.random() * Math.PI * 2);
+
+    for (let j = 0; j < trailCount; j++) {
+      const offset = (i * trailCount + j) * 3;
+      positions.set([ox, oy, oz], offset);
+    }
+  }
+
+  const geometry = new T.BufferGeometry();
+
+  geometry.setAttribute(
+    'position',
+    new T.BufferAttribute(positions, 3)
+      .setUsage(T.DynamicDrawUsage)
+  );
+
+  geometry.setAttribute(
+    'color',
+    new T.BufferAttribute(rgb, 3)
+      .setUsage(T.DynamicDrawUsage)
+  );
+
+  const material = new T.PointsMaterial({
+    map: sparkTexture,
+    size: type === 0 ? .24 : .30,
+    transparent: true,
+    opacity: 1,
+    vertexColors: true,
+    depthWrite: false,
+    blending: T.AdditiveBlending,
+    fog: false,
+    toneMapped: false
+  });
+
+  const object = new T.Points(geometry, material);
+  object.frustumCulled = false;
+  scene.add(object);
+
+  shells.push({
+    o: object,
+    ox,
+    oy,
+    oz,
+    now,
+    life,
+    drag,
+    gravity,
+    type,
+    velocities,
+    baseColors,
+    phases
+  });
+
+  // 既存の音声処理につながる関数名を維持します。
+  play(ox);
+}
+
+// 終わった花火の描画用メモリを解放します。
+function remove(shell) {
+  scene.remove(shell.o);
+  shell.o.geometry.dispose();
+  shell.o.material.dispose();
+}
+
+function galaxyFrame() {
+  const now = Date.now();
+
+  // 既存の椅子ボタンとアバター更新を維持します。
+  sit.style.display =
+    sitting < 0 && z > -3 && dist(nearest()) <= .83
+      ? 'block'
+      : 'none';
+
+  for (const {g} of people.values()) {
+    if (!g.userData.tcikRoundAvatar) {
+      doll(g);
+      g.userData.tcikRoundAvatar = true;
+    }
+  }
+
+  if (staff) {
+    staff.rotation.y = .12 * Math.sin(now * .0014);
+  }
+
+  // 新しいプレビューを押したら演出を初期化します。
+  if (preview && preview !== last) {
+    last = preview;
+    end = preview;
+    next = preview;
+    index = 0;
+
+    for (const shell of shells.splice(0)) {
+      remove(shell);
+    }
+  }
+
+  const show = now >= end;
+
+  words.visible = show;
+  milky.visible = show;
+  sign.visible = !show;
+
+  if (show) {
+    words.material.opacity = .94 + .05 * Math.sin(now * .003);
+    words.material.size = .13 + .008 * Math.sin(now * .004);
+
+    if (now < end + duration && now >= next) {
+      const elapsed = now - end;
+
+      // 開始後15秒から左右と中央にフィナーレを出します。
+      const finale = elapsed >= 15000 && elapsed < 20000;
+
+      if (finale) {
+        launch(now, [-12, 12, 0][index % 3]);
+        next = now + (compactFireworks ? 650 : 430);
+      } else {
+        launch(now);
+
+        // 序盤は時々左右の花火を重ねます。
+        if (elapsed < 15000 && index % 4 === 1) {
+          launch(now, oxForPair());
+        }
+
+        next = now + (
+          elapsed < 20000 ? 850 : 1400
+        ) + Math.random() * 350;
+      }
+    }
+  }
+
+  for (let i = shells.length - 1; i >= 0; i--) {
+    const shell = shells[i];
+    const age = (now - shell.now) / 1000;
+
+    if (age >= shell.life) {
+      remove(shell);
+      shells.splice(i, 1);
+      continue;
+    }
+
+    const positions = shell.o.geometry.attributes.position;
+    const colors = shell.o.geometry.attributes.color;
+
+    const fade = Math.pow(
+      Math.max(0, 1 - age / shell.life),
+      .85
+    );
+
+    for (let j = 0; j < shell.velocities.length; j++) {
+      const [vx, vy, vz] = shell.velocities[j];
+      const [red, green, blue] = shell.baseColors[j];
+
+      // 激しい点滅ではなく、穏やかな明るさの揺れです。
+      const shimmer = .82 + .18 * Math.sin(
+        age * 9 + shell.phases[j]
+      );
+
+      for (let k = 0; k < trailCount; k++) {
+        const time = Math.max(0, age - k * .045);
+        const spread = (
+          1 - Math.exp(-time * shell.drag)
+        ) / shell.drag;
+
+        const vertex = j * trailCount + k;
+
+        positions.setXYZ(
+          vertex,
+          shell.ox + vx * spread,
+          shell.oy + vy * spread - shell.gravity * time * time,
+          shell.oz + vz * spread
+        );
+
+        // 頭の粒を明るくし、尾は徐々に暗くします。
+        const tailFade = Math.pow(1 - k / trailCount, 1.8);
+        const brightness =
+          fade * shimmer * tailFade * (age > k * .045 ? 1 : 0);
+
+        colors.setXYZ(
+          vertex,
+          red * brightness,
+          green * brightness,
+          blue * brightness
+        );
+      }
+    }
+
+    positions.needsUpdate = true;
+    colors.needsUpdate = true;
+  }
+
+  requestAnimationFrame(galaxyFrame);
+}
+
+// 対になる花火は左右に分けて配置します。
+function oxForPair() {
+  return index % 2 === 0 ? -10 : 10;
+}
+
+requestAnimationFrame(galaxyFrame);
 // Paste inside the Galaxy block, immediately before its final lone closing brace.
 {
   sound.remove();
