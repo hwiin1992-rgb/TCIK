@@ -100,10 +100,33 @@ export function registerFishing(io, socket, room, { getPose, isSeated, publishPo
     if (Date.now() < mine.biteAt) {
       answer(reply, { ok: false, reason: "\uc544\uc9c1 \uc785\uc9c8\uc744 \uae30\ub2e4\ub9ac\ub294 \uc911\uc774\uc5d0\uc694.", waitMs: mine.biteAt - Date.now() }); return;
     }
-    const fortune = fortunes[randomInt(fortunes.length)];
-    nextBite();
-    answer(reply, { ok: true, fortune, waitMs: mine.biteAt - Date.now(), disclaimer: "\uc7ac\ubbf8\ub85c \uc990\uae30\ub294 \uc2e0\ub144 \uc6b4\uc138\uc785\ub2c8\ub2e4." });
+        const fortune = fortunes[randomInt(fortunes.length)];
+
+    mine.active = false;
+    mine.biteAt = 0;
+
+    const pose = getPose();
+
+    if (pose) {
+      publishPose([
+        mine.x,
+        mine.z,
+        mine.yaw,
+        0,
+        pose[4]
+      ]);
+    }
+
+    broadcast();
+
+    answer(reply, {
+      ok: true,
+      fortune,
+            finished: true,
+      disclaimer: "\uc7ac\ubbf8\ub85c \uc990\uae30\ub294 \uc2e0\ub144 \uc6b4\uc138\uc785\ub2c8\ub2e4."
+    });
   });
+
   socket.on('fishing:stop', reply => {
     if (mine.active) {
       mine.active = false;
