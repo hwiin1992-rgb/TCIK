@@ -1513,3 +1513,633 @@ function lamp(x,y,z,s){cyl(x,y+.023*s,z,.19*s,.21*s,.045*s,black);cyl(x,y+.24*s,
   `;
   document.head.append(mobileStyle);
 }
+// 데크의 낚시꾼 NPC입니다.
+{
+  const fisherman = new T.Group();
+  fisherman.name = 'tcikFisherman';
+  fisherman.position.set(-7, 0, -5.5);
+  scene.add(fisherman);
+
+  const skin = 0xe0ad85;
+  const jacket = 0x657450;
+  const trousers = 0x584639;
+  const boots = 0x302b26;
+  const hat = 0xb59a6c;
+
+  // 둥근 신체 부위를 만드는 함수입니다.
+  function fisherPart(x, y, z, sx, sy, sz, color) {
+    const mesh = new T.Mesh(
+      new T.SphereGeometry(1, 16, 12),
+      new T.MeshStandardMaterial({ color })
+    );
+
+    mesh.position.set(x, y, z);
+    mesh.scale.set(sx, sy, sz);
+    fisherman.add(mesh);
+
+    return mesh;
+  }
+
+  // 몸통과 낚시 조끼입니다.
+  fisherPart(0, .91, 0, .25, .31, .18, jacket);
+
+  for (const side of [-1, 1]) {
+    // 바지와 신발입니다.
+    fisherPart(
+      side * .12, .39, 0,
+      .10, .30, .10,
+      trousers
+    );
+
+    fisherPart(
+      side * .12, .09, .065,
+      .11, .08, .15,
+      boots
+    );
+
+    // 팔과 손입니다.
+    fisherPart(
+      side * .265, .88, .025,
+      .085, .23, .09,
+      jacket
+    );
+
+    fisherPart(
+      side * .265, .68, .055,
+      .065, .075, .065,
+      skin
+    );
+
+    // 조끼 앞주머니입니다.
+    box(
+      side * .13, .88, .17,
+      .15, .15, .045,
+      0x85916a,
+      fisherman
+    );
+  }
+
+  // 머리와 얼굴입니다.
+  fisherPart(0, 1.34, 0, .21, .23, .20, skin);
+
+  for (const side of [-1, 1]) {
+    fisherPart(
+      side * .073, 1.35, .187,
+      .015, .021, .012,
+      0x302720
+    );
+  }
+
+  // 챙이 넓은 낚시 모자입니다.
+  cyl(0, 1.52, 0, .31, .31, .045, hat, fisherman);
+  cyl(0, 1.60, -.015, .20, .23, .16, hat, fisherman);
+  cyl(0, 1.545, -.015, .231, .231, .04, 0x66533e, fisherman);
+
+  // 옆에 세워 둔 낚싯대입니다.
+  const rodStart = new T.Vector3(.36, .08, .03);
+  const rodEnd = new T.Vector3(.66, 2.10, -.22);
+  const rodDirection = rodEnd.clone().sub(rodStart);
+
+  const rod = new T.Mesh(
+    new T.CylinderGeometry(
+      .012,
+      .022,
+      rodDirection.length(),
+      8
+    ),
+    new T.MeshStandardMaterial({ color: 0x564532 })
+  );
+
+  rod.position.copy(
+    rodStart.clone().add(rodEnd).multiplyScalar(.5)
+  );
+
+  rod.quaternion.setFromUnitVectors(
+    new T.Vector3(0, 1, 0),
+    rodDirection.normalize()
+  );
+
+  fisherman.add(rod);
+
+  // 모자 옆 낚싯대에서 내려오는 줄입니다.
+  const lineGeometry = new T.BufferGeometry().setFromPoints([
+    rodEnd,
+    new T.Vector3(.70, .38, -.20)
+  ]);
+
+  fisherman.add(
+    new T.Line(
+      lineGeometry,
+      new T.LineBasicMaterial({
+        color: 0xc6c9bc,
+        transparent: true,
+        opacity: .65
+      })
+    )
+  );
+
+  // 장비 상자입니다.
+  box(-.54, .18, .04, .48, .34, .34, 0x826547, fisherman);
+  box(-.54, .36, .04, .51, .045, .37, 0xa1835b, fisherman);
+  box(-.54, .22, .218, .10, .08, .025, 0xc6b78f, fisherman);
+
+  // NPC 이름표입니다.
+  const labelCanvas = document.createElement('canvas');
+  labelCanvas.width = 768;
+  labelCanvas.height = 192;
+
+  const labelContext = labelCanvas.getContext('2d');
+  labelContext.fillStyle = 'rgba(34, 40, 31, .88)';
+  labelContext.fillRect(0, 0, 768, 192);
+
+  labelContext.textAlign = 'center';
+  labelContext.textBaseline = 'middle';
+
+  labelContext.fillStyle = '#fff1cc';
+  labelContext.font = 'bold 52px "Malgun Gothic", sans-serif';
+  labelContext.fillText('신년 운세 낚시꾼', 384, 65);
+
+  labelContext.fillStyle = '#d8dfc1';
+  labelContext.font = '32px "Malgun Gothic", sans-serif';
+  labelContext.fillText('가까이 와서 장비를 빌려 보세요', 384, 135);
+
+  const labelTexture = new T.CanvasTexture(labelCanvas);
+  labelTexture.colorSpace = T.SRGBColorSpace;
+
+  const label = new T.Sprite(
+    new T.SpriteMaterial({
+      map: labelTexture,
+      transparent: true,
+      depthWrite: false
+    })
+  );
+
+  label.position.set(0, 2.13, 0);
+  label.scale.set(2.65, .6625, 1);
+  fisherman.add(label);
+}
+// 낚시 장비 대여, 조작 화면, 접이식 의자와 낚싯대 표시입니다.
+{
+  const fishingSeatMarker = 1000;
+  const fishingObjects = new Map();
+
+  let fishermanPosition = { x: -7, z: -5.5 };
+  let fishingReady = false;
+  let equipmentRented = false;
+  let fishingActive = false;
+  let fishingPending = false;
+  let biteDeadline = 0;
+
+  // 낚시 전용 안내창입니다.
+  const panel = document.createElement('div');
+
+  Object.assign(panel.style, {
+    position: 'fixed',
+    right: '12px',
+    bottom: '12px',
+    zIndex: '12000',
+    width: '290px',
+    maxWidth: 'calc(100vw - 24px)',
+    maxHeight: '45vh',
+    overflowY: 'auto',
+    boxSizing: 'border-box',
+    padding: '12px',
+    border: '1px solid #a88e60',
+    borderRadius: '12px',
+    color: '#fff1d2',
+    background: 'rgba(30, 40, 36, .94)',
+    display: 'none'
+  });
+
+  const heading = document.createElement('div');
+  heading.textContent = '신년 운세 낚시';
+  heading.style.fontWeight = 'bold';
+
+  const description = document.createElement('div');
+  description.style.margin = '8px 0';
+  description.style.lineHeight = '1.5';
+  description.setAttribute('aria-live', 'polite');
+
+  const actions = document.createElement('div');
+
+  const result = document.createElement('div');
+  result.style.whiteSpace = 'pre-line';
+  result.style.lineHeight = '1.55';
+
+  panel.append(heading, description, actions, result);
+  document.body.append(panel);
+
+  function makeButton(text, handler) {
+    const button = document.createElement('button');
+    button.textContent = text;
+    button.style.minHeight = '44px';
+    button.onclick = handler;
+    actions.append(button);
+    return button;
+  }
+
+  const rentButton = makeButton(
+    '낚시 장비 빌리기',
+    () => sendFishingRequest('fishing:rent')
+  );
+
+  const startButton = makeButton(
+    '의자 펴고 낚시하기',
+    () => sendFishingRequest('fishing:start')
+  );
+
+  const reelButton = makeButton(
+    '입질! 끌어올리기',
+    () => sendFishingRequest('fishing:reel')
+  );
+
+  const stopButton = makeButton(
+    '낚시 그만하기',
+    () => sendFishingRequest('fishing:stop')
+  );
+
+  // 서버와 같은 기준으로 낚시 가능한 위치를 안내합니다.
+  function isNearFishingEdge() {
+    if (
+      Math.abs(x) > 8.4 ||
+      z < -10.2 ||
+      z > -4.3
+    ) {
+      return false;
+    }
+
+    return z <= -9.8 || x <= -7.9 || x >= 7.9;
+  }
+
+  function isNearFisherman() {
+    return Math.hypot(
+      x - fishermanPosition.x,
+      z - fishermanPosition.z
+    ) <= 1.8;
+  }
+
+  // 두 점 사이를 잇는 낚싯대나 의자 프레임을 만듭니다.
+  function fishingBar(parent, from, to, radius, color) {
+    const a = new T.Vector3(...from);
+    const b = new T.Vector3(...to);
+    const direction = b.clone().sub(a);
+
+    const mesh = new T.Mesh(
+      new T.CylinderGeometry(
+        radius,
+        radius,
+        direction.length(),
+        8
+      ),
+      new T.MeshStandardMaterial({ color })
+    );
+
+    mesh.position.copy(a.clone().add(b).multiplyScalar(.5));
+    mesh.quaternion.setFromUnitVectors(
+      new T.Vector3(0, 1, 0),
+      direction.normalize()
+    );
+
+    parent.add(mesh);
+    return mesh;
+  }
+
+  function createFishingObject(player) {
+    const group = new T.Group();
+    group.position.set(player.x, 0, player.z);
+
+    // 이 그룹에서는 앞쪽이 -Z 방향입니다.
+    group.rotation.y = player.yaw;
+    scene.add(group);
+
+    // 접이식 의자의 천 좌판과 등받이입니다.
+    box(0, .455, 0, .52, .055, .48, 0x6f8061, group);
+    box(0, .72, .235, .52, .43, .045, 0x6f8061, group);
+
+    // 양옆의 교차형 금속 다리입니다.
+    for (const side of [-1, 1]) {
+      const sideX = side * .245;
+
+      fishingBar(
+        group,
+        [sideX, .035, -.24],
+        [sideX, .47, .22],
+        .018,
+        0xb0aaa0
+      );
+
+      fishingBar(
+        group,
+        [sideX, .035, .25],
+        [sideX, .47, -.22],
+        .018,
+        0xb0aaa0
+      );
+
+      fishingBar(
+        group,
+        [sideX, .45, .23],
+        [sideX, .95, .25],
+        .018,
+        0xb0aaa0
+      );
+    }
+
+    // 앉은 캐릭터의 손 가까이에서 바다로 뻗는 낚싯대입니다.
+    fishingBar(
+      group,
+      [.24, .77, -.12],
+      [.25, 1.72, -2.30],
+      .012,
+      0x655139
+    );
+
+    // 손잡이입니다.
+    fishingBar(
+      group,
+      [.24, .73, -.03],
+      [.24, .88, -.37],
+      .025,
+      0x302c27
+    );
+
+    const lineGeometry = new T.BufferGeometry().setFromPoints([
+      new T.Vector3(.25, 1.72, -2.30),
+      new T.Vector3(.28, -.22, -3.15)
+    ]);
+
+    group.add(
+      new T.Line(
+        lineGeometry,
+        new T.LineBasicMaterial({
+          color: 0xd8dfd5,
+          transparent: true,
+          opacity: .7
+        })
+      )
+    );
+
+    // 바다 위의 작은 찌입니다.
+    const float = new T.Mesh(
+      new T.SphereGeometry(.045, 10, 8),
+      new T.MeshBasicMaterial({ color: 0xf2a17a })
+    );
+
+    float.position.set(.28, -.22, -3.15);
+    group.add(float);
+
+    return group;
+  }
+
+  function removeFishingObject(id) {
+    const group = fishingObjects.get(id);
+    if (!group) return;
+
+    scene.remove(group);
+
+    group.traverse(object => {
+      object.geometry?.dispose();
+
+      if (Array.isArray(object.material)) {
+        object.material.forEach(material => material.dispose());
+      } else {
+        object.material?.dispose();
+      }
+    });
+
+    fishingObjects.delete(id);
+  }
+
+  function applyFishingState(players) {
+    const visibleIds = new Set(players.map(player => player.id));
+
+    for (const id of [...fishingObjects.keys()]) {
+      if (!visibleIds.has(id)) {
+        removeFishingObject(id);
+      }
+    }
+
+    for (const player of players) {
+      let group = fishingObjects.get(player.id);
+
+      if (!group) {
+        group = createFishingObject(player);
+        fishingObjects.set(player.id, group);
+      }
+
+      group.position.set(player.x, 0, player.z);
+      group.rotation.y = player.yaw;
+    }
+
+    const mine = players.find(player => player.id === socket.id);
+    const wasActive = fishingActive;
+
+    fishingActive = !!mine;
+
+    if (mine) {
+      x = mine.x;
+      z = mine.z;
+      sitting = fishingSeatMarker;
+
+      // 다른 친구의 상태 갱신 때마다 내 시선을 초기화하지 않습니다.
+      if (!wasActive) {
+        yaw = mine.yaw;
+        pitch = 0;
+      }
+    } else if (wasActive && sitting === fishingSeatMarker) {
+      sitting = -1;
+      biteDeadline = 0;
+    }
+
+    refreshFishingPanel();
+  }
+
+  function refreshFishingPanel() {
+    const nearNpc = isNearFisherman();
+    const nearEdge = isNearFishingEdge();
+
+    const show = fishingReady && (
+      nearNpc ||
+      fishingActive ||
+      (equipmentRented && nearEdge)
+    );
+
+    panel.style.display = show ? 'block' : 'none';
+
+    rentButton.style.display =
+      nearNpc && !equipmentRented && !fishingActive
+        ? 'inline-block'
+        : 'none';
+
+    startButton.style.display =
+      equipmentRented && nearEdge && !fishingActive
+        ? 'inline-block'
+        : 'none';
+
+    reelButton.style.display =
+      fishingActive ? 'inline-block' : 'none';
+
+    stopButton.style.display =
+      fishingActive ? 'inline-block' : 'none';
+
+    rentButton.disabled = fishingPending;
+    startButton.disabled = fishingPending || sitting >= 0;
+    stopButton.disabled = fishingPending;
+
+    const waiting = biteDeadline > performance.now();
+
+    reelButton.disabled =
+      fishingPending || !biteDeadline || waiting;
+
+    if (fishingPending) {
+      description.textContent = '낚시꾼과 이야기하고 있어요.';
+    } else if (fishingActive) {
+      if (!biteDeadline) {
+        description.textContent = '낚시 상태를 확인하고 있어요.';
+      } else if (waiting) {
+        description.textContent = '찌를 바라보며 입질을 기다려 보세요.';
+      } else {
+        description.textContent = '찌가 움직였어요! 운세를 끌어올려 보세요.';
+      }
+    } else if (!equipmentRented) {
+      description.textContent =
+        '장비를 빌려 바다에서 신년 운세를 낚아 보세요.';
+    } else if (sitting >= 0) {
+      description.textContent =
+        '카페 의자에서 일어난 뒤 낚시를 시작해 주세요.';
+    } else {
+      description.textContent =
+        '이곳에서 바다를 바라보며 낚시할 수 있어요.';
+    }
+  }
+
+  function sendFishingRequest(event) {
+    if (fishingPending) return;
+
+    if (!socket.connected) {
+      result.textContent = '서버 연결을 확인해 주세요.';
+      return;
+    }
+
+    fishingPending = true;
+    refreshFishingPanel();
+
+    socket.timeout(6000).emit(event, (error, response) => {
+      fishingPending = false;
+
+      if (error) {
+        result.textContent =
+          '서버 응답을 받지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.';
+
+        refreshFishingPanel();
+        return;
+      }
+
+      if (!response?.ok) {
+        result.textContent =
+          response?.reason || '요청을 처리하지 못했어요.';
+
+        if (response?.waitMs !== undefined) {
+          biteDeadline = performance.now() + response.waitMs;
+        }
+
+        refreshFishingPanel();
+        return;
+      }
+
+      if (event === 'fishing:rent') {
+        equipmentRented = true;
+        result.textContent = response.message;
+      }
+
+      if (event === 'fishing:start') {
+        equipmentRented = true;
+        fishingActive = true;
+
+        x = response.position.x;
+        z = response.position.z;
+        yaw = response.position.yaw;
+        pitch = 0;
+        sitting = fishingSeatMarker;
+
+        biteDeadline = performance.now() + response.waitMs;
+        result.textContent = '';
+        notice = '접이식 의자를 펴고 낚시를 시작했어요.';
+      }
+
+      if (event === 'fishing:reel') {
+        biteDeadline = performance.now() + response.waitMs;
+
+        result.textContent =
+          '[' + response.fortune.category + ']\n' +
+          response.fortune.message + '\n\n' +
+          response.disclaimer;
+
+        notice = '신년 운세를 낚았어요!';
+      }
+
+      if (event === 'fishing:stop') {
+        fishingActive = false;
+        biteDeadline = 0;
+
+        if (sitting === fishingSeatMarker) {
+          sitting = -1;
+        }
+
+        result.textContent = '의자를 접었어요. 다른 위치에서도 낚시해 보세요.';
+        notice = '낚시를 마쳤어요.';
+      }
+
+      refreshFishingPanel();
+    });
+  }
+
+  // 새로 접속했을 때 기존 친구들의 낚시 모습도 받습니다.
+  socket.on('fishing:init', data => {
+    fishermanPosition = data.fisherman;
+    fishingReady = true;
+    equipmentRented = false;
+    fishingPending = false;
+    biteDeadline = 0;
+
+    applyFishingState(data.players);
+  });
+
+  socket.on('fishing:state', applyFishingState);
+
+  socket.on('disconnect', () => {
+    fishingReady = false;
+    equipmentRented = false;
+    fishingActive = false;
+    fishingPending = false;
+    biteDeadline = 0;
+
+    if (sitting === fishingSeatMarker) {
+      sitting = -1;
+    }
+
+    for (const id of [...fishingObjects.keys()]) {
+      removeFishingObject(id);
+    }
+
+    panel.style.display = 'none';
+  });
+
+  // 기존 일어서기 버튼도 낚시 중에는 낚시 종료로 연결합니다.
+  ui.addEventListener('click', event => {
+    if (
+      sitting !== fishingSeatMarker ||
+      event.target.dataset.a !== 'stand'
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+
+    sendFishingRequest('fishing:stop');
+  }, true);
+
+  // 이동과 입질 대기에 맞춰 버튼을 갱신합니다.
+  setInterval(refreshFishingPanel, 200);
+}
