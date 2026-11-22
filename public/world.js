@@ -60,10 +60,226 @@ scene.add(terraceSea);
 const c=document.createElement('canvas');c.width=1024;c.height=256;const ctx=c.getContext('2d'),tex=new T.CanvasTexture(c);tex.colorSpace=T.SRGBColorSpace;const sign=new T.Mesh(new T.PlaneGeometry(23,5.75),new T.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false}));sign.position.set(0,9,-36);scene.add(sign);const points=[];for(let i=0;i<430;i++)points.push(Math.sin(i*17.13)*65,3+(i*13.17)%42,-21-(i*19.81)%58);const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(points,3));scene.add(new T.Points(geo,new T.PointsMaterial({color:0xffe7b8,size:.11})));
 let x=0,z=2,yaw=0,pitch=0,sitting=-1,order=-1,ready=0,held=-1,left=0,preview=0,last=0,notice='바에 가까이 가면 주문할 수 있어요.';const names=['아메리카노','카페라떼','바닐라라떼','핫초코','유자차'],colors=[0x38221c,0xc2926e,0xe1ba82,0x734535,0xeeb94f],keys=new Set(),people=new Map();const cup=(p)=>{const g=new T.Group();p.add(g);cyl(0,0,0,.09,.065,.14,0xffe5c0,g);const top=cyl(0,.071,0,.075,.075,.009,colors[0],g);return {g,top}};const mine=cup(cam);scene.add(cam);mine.g.position.set(.29,-.24,-.55);
 socket.on('pose',(id,p)=>{if(!people.has(id)){let g=new T.Group();scene.add(g);box(0,.66,0,.41,.56,.25,0x526f6d,g);cyl(0,1.09,0,.17,.16,.28,0xe1ac81,g);box(0,.22,0,.29,.42,.21,0x302b33,g);const mug=cup(g);mug.g.position.set(.27,.66,-.2);g.position.set(p[0],0,p[1]);people.set(id,{g,mug})}const a=people.get(id);a.p=p;a.mug.g.visible=p[4]>=0;if(p[4]>=0)a.mug.top.material.color.setHex(colors[p[4]])});function remove(id){const a=people.get(id);if(a){scene.remove(a.g);people.delete(id)}}socket.on('bye',remove);socket.on('disconnect',()=>[...people.keys()].forEach(remove));
-const ui=document.querySelector('#act'),msg=document.querySelector('#msg');const nearBar=()=>Math.hypot(x+5.5,z-1)<2.25;const nearTable=()=>tables.findIndex(([a,b])=>Math.hypot(x-a,z-b-1.13)<1.05);let prev='';function update(now){const t=nearTable(),bar=nearBar();let a=[];if(sitting>=0){a.push(['stand','일어서기']);if(held>=0)a.push(['sip','한 모금 마시기'])}else if(t>=0)a.push(['seat','테이블에 앉기']);if(bar&&held<0){if(order<0)names.forEach((n,i)=>a.push(['o'+i,n]));else a.push(['pick',now>=ready?'음료 받기':'준비 중',now<ready])}if(z<-3.5)a.push(['preview','10초 미리보기']);const html=a.map(([id,n,d])=>`<button data-a="${id}" ${d?'disabled':''}>${n}</button>`).join('');if(html!==prev){ui.innerHTML=html;prev=html}msg.textContent=notice+(held>=0?' · '+names[held]+' '+left+'모금':'')+' · '+(socket.connected?'이 방 '+(people.size+1)+'명':'연결 중')}
-ui.onclick=e=>{const a=e.target.dataset.a;if(!a)return;if(a[0]==='o'&&nearBar()&&order<0&&held<0){order=+a[1];ready=Date.now()+2200;notice=names[order]+' 주문 완료'}if(a==='pick'&&order>=0&&Date.now()>=ready&&nearBar()){held=order;order=-1;left=3;notice='음료를 받았어요. 의자에 가까이 가 보세요.'}if(a==='seat'&&nearTable()>=0){sitting=nearTable();[x,z]=tables[sitting];z+=1.13;yaw=0;notice='테이블에 앉았어요.'}if(a==='stand'){sitting=-1;z+=.48;notice='자리에서 일어났어요.'}if(a==='sip'&&sitting>=0&&held>=0){left--;notice=left?'한 모금 마셨어요.':names[held]+'를 다 마셨어요.';if(!left)held=-1}if(a==='preview')preview=Date.now()+10000};document.querySelector('#share').onclick=async()=>{try{await navigator.clipboard.writeText(location.href);notice='친구 링크를 복사했어요.'}catch{prompt('친구에게 보낼 주소',location.href)}};
+// 서버가 알려 준 실제 의자 목록과 점유 상태입니다.
+let cafeChairs = [];
+let cafeOccupied = new Map();
+let cafeSeatPending = false;
+
+// 처음 접속하거나 다시 연결됐을 때 의자 정보를 받습니다.
+socket.on('seats:init', data => {
+  cafeChairs = data.chairs;
+
+  cafeOccupied = new Map(
+    data.occupied.map(item => [
+      item.chairId,
+      item.playerId
+    ])
+  );
+
+  cafeSeatPending = false;
+  sitting = -1;
+});
+
+// 다른 사람이 앉거나 일어나면 점유 상태를 갱신합니다.
+socket.on('seats:state', occupied => {
+  cafeOccupied = new Map(
+    occupied.map(item => [
+      item.chairId,
+      item.playerId
+    ])
+  );
+});
+
+// 연결이 끊기면 이전 착석 상태를 해제합니다.
+socket.on('disconnect', () => {
+  cafeChairs = [];
+  cafeOccupied.clear();
+  cafeSeatPending = false;
+  sitting = -1;
+});
+
+// 가까운 실제 의자 하나를 찾습니다.
+// 점유된 의자를 건너뛰어 먼 의자에 앉히지는 않습니다.
+function nearestCafeChair() {
+  let nearest = null;
+  let distance = Infinity;
+
+  for (const chair of cafeChairs) {
+    const current = Math.hypot(
+      x - chair.x,
+      z - chair.z
+    );
+
+    if (current < distance) {
+      nearest = chair;
+      distance = current;
+    }
+  }
+
+  return { chair: nearest, distance };
+}
+
+// 두 착석 버튼이 함께 사용할 함수입니다.
+function requestCafeSeat() {
+  if (!socket.connected) {
+    notice = '서버에 연결된 뒤 다시 시도해 주세요.';
+    return;
+  }
+
+  if (sitting >= 0 || cafeSeatPending) return;
+
+  if (!cafeChairs.length) {
+    notice = '의자 정보를 불러오는 중이에요.';
+    return;
+  }
+
+  const { chair, distance } = nearestCafeChair();
+
+  if (!chair || distance > .83) {
+    notice = '보이는 의자에 조금 더 가까이 가 주세요.';
+    return;
+  }
+
+  if (cafeOccupied.has(chair.id)) {
+    notice = '이미 다른 사람이 앉아 있는 의자예요.';
+    return;
+  }
+
+  cafeSeatPending = true;
+  notice = '빈자리인지 확인하고 있어요.';
+
+  socket.timeout(5000).emit(
+    'seat:request',
+    chair.id,
+    (error, result) => {
+      cafeSeatPending = false;
+
+      if (error) {
+        notice = '착석 응답을 받지 못했어요. 다시 접속해 주세요.';
+        return;
+      }
+
+      if (!result?.ok) {
+        notice = result?.reason || '지금은 앉을 수 없어요.';
+        return;
+      }
+
+      const approved = result.chair;
+
+      x = approved.x;
+      z = approved.z;
+      yaw = approved.yaw;
+      pitch = 0;
+      sitting = approved.id;
+
+      notice = '의자에 앉았어요.';
+    }
+  );
+}
+
+// 일어서기 버튼에서 사용할 함수입니다.
+function leaveCafeSeat() {
+  if (cafeSeatPending || sitting < 0) return;
+
+  cafeSeatPending = true;
+
+  socket.timeout(5000).emit(
+    'seat:leave',
+    (error, result) => {
+      cafeSeatPending = false;
+
+      if (error || !result?.ok) {
+        notice = '일어서기 응답을 받지 못했어요. 다시 접속해 주세요.';
+        return;
+      }
+
+      sitting = -1;
+      notice = '자리에서 일어났어요.';
+    }
+  );
+}const ui=document.querySelector('#act'),msg=document.querySelector('#msg');const nearBar=()=>Math.hypot(x+5.5,z-1)<2.25;const nearTable=()=>tables.findIndex(([a,b])=>Math.hypot(x-a,z-b-1.13)<1.05);let prev='';function update(now){const t=nearTable(),bar=nearBar();let a=[];if(sitting>=0){a.push(['stand','일어서기']);if(held>=0)a.push(['sip','한 모금 마시기'])}else if(t>=0)a.push(['seat','테이블에 앉기']);if(bar&&held<0){if(order<0)names.forEach((n,i)=>a.push(['o'+i,n]));else a.push(['pick',now>=ready?'음료 받기':'준비 중',now<ready])}if(z<-3.5)a.push(['preview','10초 미리보기']);const html=a.map(([id,n,d])=>`<button data-a="${id}" ${d?'disabled':''}>${n}</button>`).join('');if(html!==prev){ui.innerHTML=html;prev=html}msg.textContent=notice+(held>=0?' · '+names[held]+' '+left+'모금':'')+' · '+(socket.connected?'이 방 '+(people.size+1)+'명':'연결 중')}
+ui.onclick=e=>{const a=e.target.dataset.a;if(!a)return;if(a[0]==='o'&&nearBar()&&order<0&&held<0){order=+a[1];ready=Date.now()+2200;notice=names[order]+' 주문 완료'}if(a==='pick'&&order>=0&&Date.now()>=ready&&nearBar()){held=order;order=-1;left=3;notice='음료를 받았어요. 의자에 가까이 가 보세요.'}if (a === 'seat') {
+  requestCafeSeat();
+}if (a === 'stand') {
+  leaveCafeSeat();
+}if(a==='sip'&&sitting>=0&&held>=0){left--;notice=left?'한 모금 마셨어요.':names[held]+'를 다 마셨어요.';if(!left)held=-1}if(a==='preview')preview=Date.now()+10000};document.querySelector('#share').onclick=async()=>{try{await navigator.clipboard.writeText(location.href);notice='친구 링크를 복사했어요.'}catch{prompt('친구에게 보낼 주소',location.href)}};
 addEventListener('keydown',e=>keys.add(e.key.toLowerCase()));addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',()=>keys.clear());const nav=document.querySelector('#nav');nav.innerHTML=[['q','↶'],['w','↑'],['e','↷'],['a','←'],['s','↓'],['d','→']].map(([k,v])=>`<button data-k="${k}">${v}</button>`).join('');for(const b of nav.children){b.onpointerdown=e=>{b.setPointerCapture(e.pointerId);keys.add(b.dataset.k)};b.onpointerup=b.onpointercancel=b.onlostpointercapture=()=>keys.delete(b.dataset.k)}const cv=r.domElement;cv.style.touchAction='none';let drag=null;cv.onpointerdown=e=>{cv.setPointerCapture(e.pointerId);drag=[e.clientX,e.clientY]};cv.onpointerup=cv.onpointercancel=()=>drag=null;cv.onpointermove=e=>{if(!drag)return;yaw-=(e.clientX-drag[0])*.005;pitch=T.MathUtils.clamp(pitch-(e.clientY-drag[1])*.004,-1.15,1.15);drag=[e.clientX,e.clientY]};
-function valid(a,b){return Math.abs(a)<8.7&&b>-10.65&&b<6.75&&!(Math.abs(b+3)<.25&&Math.abs(a)>1.22)&&!(Math.abs(a+5.5)<2.65&&Math.abs(b+.2)<.75)&&!tables.some(([u,v])=>Math.hypot(a-u,b-v)<.98)}let clock=new T.Clock(),old='';r.setAnimationLoop(()=>{const dt=Math.min(clock.getDelta(),.05),now=Date.now();yaw+=((keys.has('q')?1:0)-(keys.has('e')?1:0))*dt*1.8;if(sitting<0){const f=+keys.has('w')-+keys.has('s'),s=+keys.has('d')-+keys.has('a'),k=dt*3/Math.max(1,Math.hypot(f,s));const xx=x+(-Math.sin(yaw)*f+Math.cos(yaw)*s)*k,zz=z+(-Math.cos(yaw)*f-Math.sin(yaw)*s)*k;if(valid(xx,z))x=xx;if(valid(x,zz))z=zz}cam.position.set(x,sitting<0?1.64:1.16,z);cam.rotation.set(pitch,yaw,0,'YXZ');mine.g.visible=held>=0;if(held>=0)mine.top.material.color.setHex(colors[held]);for(const {g,p} of people.values()){g.position.lerp(new T.Vector3(p[0],p[3]?-.37:0,p[1]),Math.min(dt*12,1));g.rotation.y=p[2]}if(now-last>=70){last=now;socket.volatile.emit('pose',[x,z,yaw,+ (sitting>=0),held]);update(now)}const rem=Math.max(0,Math.ceil(((preview||Date.parse('2027-01-01T00:00:00+09:00'))-now)/1000));const pad=n=>String(n).padStart(2,'0');const text=!rem?'2027':rem<=10?String(rem):`${Math.floor(rem/86400)}일 ${pad(Math.floor(rem/3600)%24)}:${pad(Math.floor(rem/60)%60)}:${pad(rem%60)}`;if(text!==old){old=text;ctx.clearRect(0,0,1024,256);ctx.fillStyle='white';ctx.font=`bold ${rem<=10?185:100}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,512,128);const pixels=ctx.getImageData(0,0,1024,256).data;ctx.clearRect(0,0,1024,256);ctx.fillStyle='#ffedb7';for(let y=0;y<256;y+=6)for(let x=0;x<1024;x+=6)if(pixels[(y*1024+x)*4+3]>128){ctx.beginPath();ctx.arc(x,y,1.2+((x*19+y*23)%7)/7,0,Math.PI*2);ctx.fill()}tex.needsUpdate=true}terraceSeaTime.value = now * .001 % 3600;
+function valid(a,b){return Math.abs(a)<8.7&&b>-10.65&&b<6.75&&!(Math.abs(b+3)<.25&&Math.abs(a)>1.22)&&!(Math.abs(a+5.5)<2.65&&Math.abs(b+.2)<.75)&&!tables.some(([u,v])=>Math.hypot(a-u,b-v)<.98)}let clock=new T.Clock(),old='';r.setAnimationLoop(()=>{const dt=Math.min(clock.getDelta(),.05),now=Date.now();yaw+=((keys.has('q')?1:0)-(keys.has('e')?1:0))*dt*1.8;if(sitting<0){const f=+keys.has('w')-+keys.has('s'),s=+keys.has('d')-+keys.has('a'),k=dt*3/Math.max(1,Math.hypot(f,s));const xx=x+(-Math.sin(yaw)*f+Math.cos(yaw)*s)*k,zz=z+(-Math.cos(yaw)*f-Math.sin(yaw)*s)*k;if(valid(xx,z))x=xx;if(valid(x,zz))z=zz}cam.position.set(x,sitting<0?1.64:1.16,z);cam.rotation.set(pitch,yaw,0,'YXZ');mine.g.visible=held>=0;if(held>=0)mine.top.material.color.setHex(colors[held]);for (const {g, p} of people.values()) {
+  const seated = !!p[3];
+
+  // 아바타를 바닥 아래로 내리지 않고 의자 위치에 유지합니다.
+  g.position.lerp(
+    new T.Vector3(p[0], 0, p[1]),
+    Math.min(dt * 12, 1)
+  );
+
+  // 둥근 아바타의 얼굴은 +Z 방향입니다.
+  // 앉았을 때는 테이블을 바라보도록 방향을 돌립니다.
+  g.rotation.y = p[2] + (seated ? Math.PI : 0);
+
+  // 둥근 아바타 생성이 끝난 뒤에만 착석 자세를 적용합니다.
+  if (!g.userData.tcikRoundAvatar) continue;
+
+  // 각 신체 부위의 원래 위치를 한 번만 저장합니다.
+  if (!g.userData.tcikSeatParts) {
+    const parts = [];
+
+    for (const mesh of [...g.children]) {
+      if (
+        !mesh.isMesh ||
+        mesh.geometry?.type !== 'SphereGeometry'
+      ) continue;
+
+      const rest = mesh.position.clone();
+      const leg = Math.abs(rest.y - .24) < .001;
+      const foot = Math.abs(rest.y - .075) < .001;
+
+      parts.push({mesh, rest, leg, foot});
+
+      // 앉았을 때 무릎 아래로 내려오는 종아리를 추가합니다.
+      if (leg) {
+        const calf = new T.Mesh(
+          new T.SphereGeometry(1, 16, 12),
+          mesh.material
+        );
+
+        calf.scale.set(.085, .16, .085);
+        calf.position.set(rest.x, .29, .29);
+        calf.visible = false;
+        g.add(calf);
+
+        parts[parts.length - 1].calf = calf;
+      }
+    }
+
+    g.userData.tcikSeatParts = parts;
+  }
+
+  for (const part of g.userData.tcikSeatParts) {
+    const {mesh, rest, leg, foot, calf} = part;
+
+    // 매번 원래 자세로 되돌린 뒤 착석 여부를 반영합니다.
+    mesh.position.copy(rest);
+    mesh.rotation.x = 0;
+
+    if (seated) {
+      if (leg) {
+        // 의자 좌판 높이에서 허벅지를 앞으로 뻗습니다.
+        mesh.position.set(rest.x, .52, .15);
+        mesh.rotation.x = Math.PI / 2;
+      } else if (foot) {
+        // 발을 무릎 아래쪽 바닥 가까이에 배치합니다.
+        mesh.position.set(rest.x, .105, .34);
+      } else {
+        // 몸통·머리·팔을 좌판에 맞는 높이로 올립니다.
+                mesh.position.y += .16;
+      }
+    }
+
+    // 앉으면 종아리를 표시하고, 일어서면 숨깁니다.
+    if (calf) calf.visible = seated;
+  }
+}if(now-last>=70){last=now;socket.volatile.emit('pose',[x,z,yaw,+ (sitting>=0),held]);update(now)}const rem=Math.max(0,Math.ceil(((preview||Date.parse('2027-01-01T00:00:00+09:00'))-now)/1000));const pad=n=>String(n).padStart(2,'0');const text=!rem?'2027':rem<=10?String(rem):`${Math.floor(rem/86400)}일 ${pad(Math.floor(rem/3600)%24)}:${pad(Math.floor(rem/60)%60)}:${pad(rem%60)}`;if(text!==old){old=text;ctx.clearRect(0,0,1024,256);ctx.fillStyle='white';ctx.font=`bold ${rem<=10?185:100}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,512,128);const pixels=ctx.getImageData(0,0,1024,256).data;ctx.clearRect(0,0,1024,256);ctx.fillStyle='#ffedb7';for(let y=0;y<256;y+=6)for(let x=0;x<1024;x+=6)if(pixels[(y*1024+x)*4+3]>128){ctx.beginPath();ctx.arc(x,y,1.2+((x*19+y*23)%7)/7,0,Math.PI*2);ctx.fill()}tex.needsUpdate=true}terraceSeaTime.value = now * .001 % 3600;
 r.render(scene,cam);});
 // TCIK decor patch
 {
@@ -116,7 +332,9 @@ if (worker) {
 const large=tables.slice(),small=[[-6.65, 4.25], [-3.35, 4.45], [7.10, -1.42], [3.55, -1.65]],spots=[];
 function chair(u,v,a,existing=false){const cx=u+Math.sin(a)*1.12,cz=v+Math.cos(a)*1.12;spots.push([cx,cz,a]);if(existing)return;const g=new T.Group();g.position.set(cx,0,cz);g.rotation.y=a;scene.add(g);box(0,.45,0,.49,.095,.49,0x875c43,g);box(0,.68,.215,.47,.35,.085,0x765039,g);for(const dx of [-.18,.18])for(const dz of [-.18,.18])box(dx,.22,dz,.052,.44,.052,0x52372a,g)}
 for(const [u,v] of large)for(let i=0;i<5;i++)chair(u,v,i*Math.PI*2/5,i===0);for(const [u,v] of small){tables.push([u,v]);cyl(u,.78,v,.63,.63,.105,0x75503a);cyl(u,.38,v,.09,.15,.76,0x382921);chair(u,v,Math.PI/2);chair(u,v,-Math.PI/2)}
-function button(label,bottom){const b=document.createElement('button');b.textContent=label;Object.assign(b.style,{position:'fixed',right:'12px',bottom,zIndex:6});document.body.append(b);return b}const sit=button('가까운 의자에 앉기','80px'),sound=button('폭죽 소리 켜기','135px');sit.style.display='none';sound.setAttribute('aria-pressed','false');const dist=s=>Math.hypot(x-s[0],z-s[1]),nearest=()=>spots.reduce((a,b)=>dist(a)<=dist(b)?a:b);sit.onclick=()=>{const s=nearest();if(sitting>=0||z<=-3||dist(s)>.83)return;[x,z,yaw]=s;pitch=0;sitting=0;notice='의자에 앉았어요.'};
+function button(label,bottom){const b=document.createElement('button');b.textContent=label;Object.assign(b.style,{position:'fixed',right:'12px',bottom,zIndex:6});document.body.append(b);return b}const sit=button('가까운 의자에 앉기','80px'),sound=button('폭죽 소리 켜기','135px');sit.style.display='none';sound.setAttribute('aria-pressed','false');const dist=s=>Math.hypot(x-s[0],z-s[1]),nearest=()=>spots.reduce((a,b)=>dist(a)<=dist(b)?a:b);sit.onclick = () => {
+  requestCafeSeat();
+};
 const c=document.createElement('canvas');c.width=1400;c.height=340;const ctx=c.getContext('2d');ctx.font='italic bold 152px Georgia, serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('Happy New Year',700,165);const pixels=ctx.getImageData(0,0,1400,340).data,stars=[],colors=[],band=[];for(let v=0;v<340;v+=6)for(let u=0;u<1400;u+=6)if(pixels[(v*1400+u)*4+3]>=120){stars.push((u-700)/57,(170-v)/57,0);const k=new T.Color().setHSL(.08+u/1400*.52,.74,.73+Math.random()*.22);colors.push(k.r,k.g,k.b)}for(let i=0;i<420;i++){const a=(Math.random()-.5)*32;band.push(a,a*.16+(Math.random()+Math.random()-1)*6,-1-Math.random()*4)}
 function points(pos,opts,rgb){const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));if(rgb)g.setAttribute('color',new T.Float32BufferAttribute(rgb,3));const m=new T.PointsMaterial({transparent:true,depthWrite:false,blending:T.AdditiveBlending,fog:false,vertexColors:!!rgb,...opts});const o=new T.Points(g,m);scene.add(o);return o}const words=points(stars,{size:.13},colors),milky=points(band,{color:0x9ca8ff,size:.09,opacity:.48});for(const o of [words,milky]){o.position.set(0,8.3,-34);o.visible=false}const old=scene.children.find(o=>o.isMesh&&Math.abs(o.position.y-8.3)<.01&&Math.abs(o.position.z+35)<.01);if(old)old.material.visible=false;
 let ac,bus,noise,on=false;sound.onclick=async()=>{try{if(!ac){const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio){sound.textContent='폭죽 소리 미지원';return}ac=new Audio();bus=ac.createGain();bus.gain.value=0;const limiter=ac.createDynamicsCompressor();bus.connect(limiter);limiter.connect(ac.destination);noise=ac.createBuffer(1,ac.sampleRate,ac.sampleRate);const a=noise.getChannelData(0);for(let i=0;i<a.length;i++)a[i]=Math.random()*2-1}if(on)on=false;else{await ac.resume();on=ac.state==='running'}bus.gain.value=on?.35:0;sound.textContent=on?'폭죽 소리 끄기':'폭죽 소리 켜기';sound.setAttribute('aria-pressed',String(on))}catch{sound.textContent='폭죽 소리 다시 켜기'}};
