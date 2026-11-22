@@ -313,7 +313,114 @@ function frame(){const now=Date.now();if(preview&&preview!==seen){seen=preview;e
 {
 const actual=Date.parse('2027-01-01T00:00:00+09:00'), duration=3600000;
 const round=(g,x,y,z,a,b,c,color)=>{const m=new T.Mesh(new T.SphereGeometry(1,16,12),new T.MeshStandardMaterial({color}));m.position.set(x,y,z);m.scale.set(a,b,c);g.add(m)};
-function doll(g,staff=false){for(const m of g.children)if(m.isMesh)m.visible=false;const skin=0xe8ae89,shirt=staff?0xe7d5b9:0x75938d;round(g,0,.94,0,.22,.21,.20,skin);round(g,0,1.045,-.023,.222,.136,.20,0x3b2826);if(staff)round(g,.125,1.105,-.10,.082,.077,.078,0x3b2826);round(g,0,.61,0,.23,.27,.165,shirt);round(g,0,.56,.13,.155,.183,.047,staff?0x55694d:0x567772);for(const s of [-1,1]){round(g,s*.221,.60,.015,.073,.174,.085,shirt);round(g,s*.225,.465,.041,.061,.064,.06,skin);round(g,s*.105,.24,0,.094,.19,.09,0x483733);round(g,s*.105,.075,.052,.096,.07,.13,0x342a29);round(g,s*.077,.933,.185,.014,.02,.012,0x382826);round(g,s*.127,.887,.157,.033,.019,.015,0xd98f7c)}}
+function doll(g, staff = false) {
+  // 기존 기본 외형을 숨깁니다.
+  for (const mesh of g.children) {
+    if (mesh.isMesh) mesh.visible = false;
+  }
+
+  const skin = 0xe8ae89;
+  const hair = 0x3b2826;
+  const shirt = staff ? 0xffffff : 0x43834e;
+  const pants = staff ? 0x171717 : 0x805437;
+  const shoes = 0x342a29;
+
+  // 얼굴과 머리 윗부분입니다.
+  round(g, 0, .94, 0, .22, .21, .20, skin);
+  round(g, 0, 1.045, -.023, .222, .136, .20, hair);
+
+  if (staff) {
+    // 직원의 기존 묶음머리는 유지합니다.
+    round(g, .125, 1.105, -.10, .082, .077, .078, hair);
+  } else {
+    // 단발머리 뒷부분입니다.
+    round(g, 0, .94, -.125, .225, .205, .115, hair);
+
+    // 얼굴 양옆에서 턱 부근까지 내려오는 머리입니다.
+    for (const side of [-1, 1]) {
+      round(
+        g,
+        side * .192, .93, -.005,
+        .062, .175, .145,
+        hair
+      );
+    }
+
+    // 이마 위쪽의 둥근 앞머리입니다.
+    round(g, -.07, 1.064, .12, .13, .064, .072, hair);
+    round(g, .09, 1.07, .115, .105, .058, .07, hair);
+  }
+
+  // 몸통입니다. 친구는 초록색 티셔츠를 입습니다.
+  round(g, 0, .61, 0, .23, .27, .165, shirt);
+
+  if (staff) {
+    // 직원의 베이지색 앞치마입니다.
+    round(g, 0, .56, .13, .155, .183, .047, 0xd8c29e);
+  }
+
+  for (const side of [-1, 1]) {
+    if (staff) {
+      // 직원의 기존 긴소매입니다.
+      round(
+        g,
+        side * .221, .60, .015,
+        .073, .174, .085,
+        shirt
+      );
+    } else {
+      // 친구의 초록색 긴팔 소매입니다.
+      round(
+        g,
+        side * .221, .60, .015,
+        .073, .174, .085,
+        shirt
+      );
+    }
+
+    // 손입니다.
+    round(
+      g,
+      side * .225, .465, .041,
+      .061, .064, .06,
+      skin
+    );
+
+    // 갈색 바지입니다.
+    // 기존 착석 코드가 다리로 인식하는 높이를 유지합니다.
+    round(
+      g,
+      side * .105, .24, 0,
+      .094, .19, .09,
+      pants
+    );
+
+    // 신발입니다.
+    round(
+      g,
+      side * .105, .075, .052,
+      .096, .07, .13,
+      shoes
+    );
+
+    // 눈입니다.
+    round(
+      g,
+      side * .077, .933, .185,
+      .014, .02, .012,
+      0x382826
+    );
+
+    // 볼입니다.
+    round(
+      g,
+      side * .127, .887, .157,
+      .033, .019, .015,
+      0xd98f7c
+    );
+  }
+}
+// 기존 직원이 배치된 그룹을 찾습니다.
 const worker = scene.children.find(o =>
   o.isGroup &&
   Math.abs(o.position.x + 5.5) < .01 &&
@@ -321,13 +428,62 @@ const worker = scene.children.find(o =>
 );
 
 let staff;
+
 if (worker) {
-  for (const o of worker.children) o.visible = false;
+  // 기존 직원의 이전 외형을 숨깁니다.
+  for (const object of worker.children) {
+    object.visible = false;
+  }
+
+  // 첫 번째 직원: 현재의 묶음머리를 유지합니다.
+  // 기존 애니메이션이 사용하는 staff 변수도 유지합니다.
   staff = new T.Group();
   staff.position.set(0, -.012, -.25);
   staff.scale.setScalar(1.4);
   worker.add(staff);
+
   doll(staff, true);
+
+  // 두 번째 직원: 첫 번째 직원 옆의 카운터 안쪽에 배치합니다.
+  const secondStaff = new T.Group();
+  secondStaff.position.set(-4.25, -.012, -1.27);
+  secondStaff.scale.setScalar(1.4);
+  scene.add(secondStaff);
+
+  // 두 직원에게 같은 직원용 의상을 적용합니다.
+  doll(secondStaff, true);
+
+  // 두 번째 직원의 묶음머리 부분만 숨깁니다.
+  for (const mesh of secondStaff.children) {
+    if (
+      mesh.isMesh &&
+      Math.abs(mesh.position.x - .125) < .001 &&
+      Math.abs(mesh.position.y - 1.105) < .001 &&
+      Math.abs(mesh.position.z + .10) < .001
+    ) {
+      mesh.visible = false;
+    }
+  }
+
+  const longHairColor = 0x3b2826;
+
+  // 등 쪽으로 내려오는 긴 머리입니다.
+  round(
+    secondStaff,
+    0, .85, -.14,
+    .225, .32, .11,
+    longHairColor
+  );
+
+  // 얼굴 양옆에서 어깨까지 내려오는 머리입니다.
+  for (const side of [-1, 1]) {
+    round(
+      secondStaff,
+      side * .19, .89, -.015,
+      .06, .245, .12,
+      longHairColor
+    );
+  }
 }
 const large=tables.slice(),small=[[-6.65, 4.25], [-3.35, 4.45], [7.10, -1.42], [3.55, -1.65]],spots=[];
 function chair(u,v,a,existing=false){const cx=u+Math.sin(a)*1.12,cz=v+Math.cos(a)*1.12;spots.push([cx,cz,a]);if(existing)return;const g=new T.Group();g.position.set(cx,0,cz);g.rotation.y=a;scene.add(g);box(0,.45,0,.49,.095,.49,0x875c43,g);box(0,.68,.215,.47,.35,.085,0x765039,g);for(const dx of [-.18,.18])for(const dz of [-.18,.18])box(dx,.22,dz,.052,.44,.052,0x52372a,g)}
